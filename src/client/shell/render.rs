@@ -248,6 +248,24 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) reveal_navigation_workspace: &'a mut bool,
     pub(super) dragged_workspace_id: Option<&'a str>,
     pub(super) workspace_drop_indicator_row: Option<u16>,
+    /// The spinner's clock; each working row's frame comes from it at its set's pace.
+    pub(super) spinner_ms: u64,
+    /// The tree space row under the mouse.
+    pub(super) hovered_workspace_id: Option<&'a str>,
+    /// The tree sidebar's or rail's row under the mouse, by its hit area.
+    pub(super) hovered_row: Option<Rect>,
+    /// When the client first saw each working agent's pane working, and the compose time.
+    pub(super) working_times: Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)>,
+    /// When the client saw each done agent's pane turn done, and the compose time.
+    pub(super) done_times: Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)>,
+    /// When the client first saw each waiting agent's pane need you, and the compose time.
+    pub(super) waiting_times: Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)>,
+    /// The user's home folder, read once when the client starts; a shell there is named `~`.
+    pub(super) home_dir: Option<&'a str>,
+    /// How the tree header's task board icon shows.
+    pub(super) task_board_icon: super::task_board::BoardIcon,
+    /// Which agents' rows the tree shows.
+    pub(super) tree_filter: super::tree_sidebar::TreeFilter,
 }
 
 pub(super) fn render_shell(
@@ -287,6 +305,16 @@ pub(super) fn render_shell(
                     &mut hits,
                 );
             }
+        } else if state.sidebar_collapsed && config.sidebar_tree {
+            // One machine only: several machines took the endpoint sidebar branch above.
+            super::tree_rail::render_tree_rail(
+                buffer,
+                layout.sidebar,
+                snapshot,
+                config,
+                &state,
+                &mut hits,
+            );
         } else if state.sidebar_collapsed {
             render_collapsed_sidebar(
                 buffer,
@@ -299,7 +327,7 @@ pub(super) fn render_shell(
                 &mut hits,
             );
         } else {
-            render_sidebar(
+            render_local_sidebar(
                 buffer,
                 layout.sidebar,
                 snapshot,
@@ -330,6 +358,10 @@ pub(super) fn render_shell(
         hits.new_workspace = Rect::default();
         hits.machines.clear();
         hits.workspaces.clear();
+        hits.tree_rows.clear();
+        hits.tree_panel.clear();
+        hits.tree_new_tab.clear();
+        hits.tree_tab_folds.clear();
         hits.agents.clear();
         hits.endpoint_agents.clear();
         hits.tab_scroll_left = Rect::default();
@@ -338,6 +370,22 @@ pub(super) fn render_shell(
         hits.pane_splits.clear();
     }
     hits
+}
+
+/// Expanded sidebar for one endpoint: the tree when `ui.sidebar_tree` is on, else the sections.
+pub(super) fn render_local_sidebar(
+    buffer: &mut Buffer,
+    area: Rect,
+    snapshot: &ClientShellSnapshot,
+    config: &ClientShellConfig,
+    state: &mut ShellRenderState<'_>,
+    hits: &mut ShellHitMap,
+) {
+    if config.sidebar_tree {
+        super::tree_sidebar::render_tree_sidebar(buffer, area, snapshot, config, state, hits);
+    } else {
+        render_sidebar(buffer, area, snapshot, config, state, hits);
+    }
 }
 
 pub(super) fn put_right_text(buffer: &mut Buffer, area: Rect, y: u16, text: &str, style: Style) {

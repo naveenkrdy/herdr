@@ -187,6 +187,14 @@ pub(crate) struct ClientConnection {
     /// Surface projection epoch that owned the in-flight command. Deferred navigation may run
     /// only if this exact presentation lease is still active when its response arrives.
     pub(crate) shell_endpoint_command_surface_revision: Option<u64>,
+    /// The one `tasks.list` this shell waits on beside the ordered lane, so a slow task list
+    /// never holds up the shell's other commands.
+    pub(crate) shell_side_list_request_id: Option<String>,
+    /// The one `tasks.act` this shell waits on beside the ordered lane; it may wait at the
+    /// same time as a `tasks.list`.
+    pub(crate) shell_side_act_request_id: Option<String>,
+    /// The one `tasks.open` this shell waits on beside the ordered lane.
+    pub(crate) shell_side_open_request_id: Option<String>,
     /// Request id and buffered response for a deferred worktree-created navigation.
     pub(crate) shell_deferred_navigation_request_id: Option<String>,
     pub(crate) shell_deferred_navigation_response: Option<Vec<u8>>,
@@ -252,6 +260,9 @@ impl ClientConnection {
             shell_projection_revision: 0,
             shell_endpoint_command_in_flight: false,
             shell_endpoint_command_surface_revision: None,
+            shell_side_list_request_id: None,
+            shell_side_act_request_id: None,
+            shell_side_open_request_id: None,
             shell_deferred_navigation_request_id: None,
             shell_deferred_navigation_response: None,
             shell_uses_endpoint_keybindings: false,

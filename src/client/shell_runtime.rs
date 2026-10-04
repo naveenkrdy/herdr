@@ -48,6 +48,33 @@ pub(super) fn dispatch_client_shell_actions(
                 }
             }
             shell::ClientShellAction::ReplayMouse(events) => replay_mouse.extend(events),
+            shell::ClientShellAction::EndpointSide {
+                endpoint_id,
+                boot_id,
+                request,
+            } => {
+                let sent = endpoints
+                    .connection(&endpoint_id)
+                    .filter(|_| {
+                        endpoints.active_id() == &endpoint_id
+                            && endpoints.active_surface_available()
+                    })
+                    .map(|connection| connection.generation)
+                    .is_some_and(|generation| {
+                        endpoint_commands.send_side(
+                            endpoint_id.clone(),
+                            generation,
+                            boot_id,
+                            &request,
+                            endpoints,
+                        )
+                    });
+                if !sent {
+                    if let Some(shell) = shell.as_deref_mut() {
+                        repaint |= shell.cancel_endpoint_request(&request.id);
+                    }
+                }
+            }
             shell::ClientShellAction::Keybind(action) => {
                 debug!(
                     ?action,

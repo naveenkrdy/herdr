@@ -108,17 +108,10 @@ impl ClientShellState {
             let Some(snapshot) = endpoint.snapshot.as_deref() else {
                 continue;
             };
-            let entries = if self.sidebar_collapsed && !mobile && surface_available {
-                snapshot
-                    .workspaces
-                    .iter()
-                    .enumerate()
-                    .map(|(index, _)| WorkspaceEntry {
-                        index,
-                        indented: false,
-                        last_child: false,
-                    })
-                    .collect()
+            let entries = if (self.sidebar_collapsed && !mobile && surface_available)
+                || self.tree_sidebar_mode()
+            {
+                super::flat_workspace_entries(snapshot)
             } else {
                 let collapsed_groups = if mobile && surface_available {
                     &empty_collapsed_groups

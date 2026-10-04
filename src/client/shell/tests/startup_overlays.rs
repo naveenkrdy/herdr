@@ -316,7 +316,7 @@ fn startup_onboarding_is_client_rendered_and_modal() {
     assert!(text.contains("this is a mouse-first terminal"));
     assert!(text.contains("ctrl+b enters prefix mode"));
     assert!(text.contains("install optional agent integrations"));
-    assert_eq!(state.hits.overlay_primary.width, 12);
+    assert_eq!(state.hits.overlay_primary.width, 16, "` Enter  continue`");
 
     let ignored = state.handle_input_bytes(b"x");
     assert!(ignored.requests.is_empty());
@@ -730,7 +730,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("● update ready"));
-    let update_row = state.hits.global_menu_rows[3].0;
+    let update_row = state.hits.global_menu_rows[4].0;
     assert_eq!(update_row.width, 16);
     let menu_buffer = menu.to_ratatui_buffer().expect("menu buffer");
     assert_eq!(
@@ -741,7 +741,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         menu_buffer[(update_row.x + 3, update_row.y)].fg,
         state.config.palette.text
     );
-    state.activate_global_menu_item(3, &mut ClientShellInput::default());
+    state.activate_global_menu_item(4, &mut ClientShellInput::default());
     let notes = state.compose(106, 30).expect("release notes");
     let bottom_row_start = usize::from(notes.width) * usize::from(notes.height - 1);
     let bottom_row = notes.cells[bottom_row_start..]
@@ -921,7 +921,7 @@ fn coalesced_release_notes_open_and_scroll_uses_current_geometry() {
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("initial shell");
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 4,
     }));
 
     state.handle_raw_events(vec![
@@ -992,7 +992,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 4,
     }));
     state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1014,7 +1014,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 4,
     }));
     let closed = state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1313,4 +1313,77 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
             ..
         })) if integration_messages == &["installed codex"]
     ));
+}
+
+#[test]
+fn a_menus_highlight_is_the_selection_fill_its_border_grey_and_nothing_bold() {
+    for palette in [Palette::catppuccin(), Palette::vesper()] {
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        let mut endpoint_snapshot = snapshot();
+        endpoint_snapshot.integration_updates_available = true;
+        state.set_snapshot(Box::new(endpoint_snapshot));
+        state.set_pane_surface(surface());
+        state.compose(106, 30).expect("menu shell");
+        let snapshot = state.snapshot.as_deref().expect("snapshot");
+        let mut global = Buffer::empty(Rect::new(0, 0, 106, 30));
+        let global_render = render::render_global_menu(
+            &mut global,
+            state.hits.global_launcher,
+            &ClientGlobalMenuOverlay { highlighted: 0 },
+            snapshot,
+            &palette,
+        )
+        .expect("global menu");
+        let mut context = Buffer::empty(Rect::new(0, 0, 106, 30));
+        let context_render = render::render_context_menu(
+            &mut context,
+            &ClientContextMenuOverlay {
+                target: ClientContextMenuTarget::Tab {
+                    tab_id: "tab_1".into(),
+                    workspace_id: "ws_1".into(),
+                    splits: false,
+                },
+                x: 35,
+                y: 8,
+                highlighted: 0,
+            },
+            &palette,
+        )
+        .expect("context menu");
+        for (buffer, render) in [(&global, &global_render), (&context, &context_render)] {
+            let area = render.area;
+            for (x, y) in [(area.x, area.y), (area.x + 1, area.y), (area.x, area.y + 1)] {
+                assert_eq!(buffer[(x, y)].fg, palette.overlay0, "border at {x},{y}");
+            }
+            let (highlighted, _) = render.menu_rows[0];
+            let (plain, _) = render.menu_rows[1];
+            for x in highlighted.x..highlighted.right() {
+                let cell = &buffer[(x, highlighted.y)];
+                assert_eq!(cell.bg, palette.selection_bg, "highlight fill at {x}");
+                assert!(!cell.modifier.contains(Modifier::BOLD), "bold at {x}");
+            }
+            let word = (highlighted.x..highlighted.right())
+                .find(|&x| {
+                    buffer[(x, highlighted.y)]
+                        .symbol()
+                        .trim_start_matches('●')
+                        .trim()
+                        != ""
+                })
+                .expect("highlighted word");
+            assert_eq!(buffer[(word, highlighted.y)].fg, palette.text);
+            for x in plain.x..plain.right() {
+                assert_eq!(
+                    buffer[(x, plain.y)].bg,
+                    palette.panel_bg,
+                    "plain row at {x}"
+                );
+            }
+        }
+        let (settings, _) = global_render.menu_rows[0];
+        let badge = &global[(settings.x + 1, settings.y)];
+        assert_eq!(badge.symbol(), "●");
+        assert_eq!(badge.fg, palette.accent, "the badge keeps its colour");
+        assert!(!badge.modifier.contains(Modifier::BOLD));
+    }
 }

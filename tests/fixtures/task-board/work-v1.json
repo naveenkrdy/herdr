@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "generated": "2026-09-25T10:30:00+05:30",
+  "tasks": [
+    {
+      "n": 4,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "say final",
+      "group": "you",
+      "state": "needs you",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {
+          "file": "/home/user/devbox/projects/repos/herdr/docs/intent/../STATUS.md",
+          "line": 4,
+          "row": "| say final |"
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "push the fork",
+      "group": "claude",
+      "state": "to do",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {
+          "file": "/home/user/devbox/projects/repos/herdr/docs/intent/../STATUS.md",
+          "line": 9,
+          "row": "| push the fork |"
+        }
+      ]
+    },
+    {
+      "n": 11,
+      "space": "oakwood",
+      "project": "Chrome",
+      "task": "pairing broadcast",
+      "group": "waiting",
+      "state": "Morgan",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {
+          "file": "/home/user/devbox/projects/repos/herdr/docs/intent/../STATUS.md",
+          "line": 11,
+          "row": "| pairing broadcast |"
+        }
+      ]
+    }
+  ],
+  "work": [
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "Never cut the lead's name, even in a narrow sidebar where every column counts",
+      "stage": "plan",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-25-lead-name.md",
+      "branch": "feat/lead-name",
+      "commits": 0,
+      "steps": [
+        {
+          "text": "design",
+          "done": false
+        },
+        {
+          "text": "tests",
+          "done": false
+        }
+      ],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "oakwood",
+      "project": "oak-cli",
+      "kind": "chore",
+      "title": "Build sha in version",
+      "stage": "plan",
+      "status": "open",
+      "file": "/home/user/devbox/Workdir/oakwood-workspace/repos/oak-cli/docs/intent/2026-09-24-build-sha.md",
+      "branch": "main",
+      "commits": 0,
+      "steps": [],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "Herdr task board",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-25-task-board.md",
+      "branch": "feat/task-board",
+      "commits": 12,
+      "steps": [
+        {
+          "text": "tasks view",
+          "done": true
+        },
+        {
+          "text": "live data",
+          "done": true
+        },
+        {
+          "text": "work view",
+          "done": false
+        }
+      ],
+      "shipped_on": null,
+      "agent": {
+        "pane": "w36:pV",
+        "name": "herdr-w1",
+        "minutes": 25
+      }
+    },
+    {
+      "space": "oakwood",
+      "project": "Chrome",
+      "kind": "feature",
+      "title": "Chrome per client",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/Workdir/oakwood-workspace/repos/chrome/docs/intent/2026-09-23-per-client.md",
+      "branch": "feat/per-client",
+      "commits": 3,
+      "steps": [
+        {
+          "text": "pairing",
+          "done": true
+        },
+        {
+          "text": "broadcast",
+          "done": false
+        }
+      ],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "Tree sidebar",
+      "stage": "review",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-24-tree-sidebar.md",
+      "branch": "feat/sidebar-tree",
+      "commits": 4,
+      "steps": [
+        {
+          "text": "tree rows",
+          "done": true
+        },
+        {
+          "text": "fold",
+          "done": true
+        },
+        {
+          "text": "needs-you box",
+          "done": true
+        },
+        {
+          "text": "marks legend",
+          "done": true
+        },
+        {
+          "text": "icons",
+          "done": true
+        },
+        {
+          "text": "double count fixed",
+          "done": true
+        }
+      ],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "bug",
+      "title": "Grey icon (Vesper)",
+      "stage": "check",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-24-grey-icon.md",
+      "branch": "fix/grey-icon",
+      "commits": 2,
+      "steps": [
+        {
+          "text": "repro",
+          "done": true
+        },
+        {
+          "text": "fix",
+          "done": true
+        }
+      ],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "bug",
+      "title": "Blank /clear screen",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-0.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-24",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Box lines on /clear",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-1.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-24",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Numbered, wrapped rows",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-2.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-23",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Ghostty config moved",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-3.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-23",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Tree sidebar marks",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-4.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-22",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "bug",
+      "title": "Double count of unseen",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-5.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-22",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Claude brand theme",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-6.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-21",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "chore",
+      "title": "Notes files trimmed",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-7.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-20",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Resume pointers",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-8.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-19",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "chore",
+      "title": "Hooks tidy",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/shipped-9.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-19",
+      "agent": null
+    },
+    {
+      "space": "dotworks",
+      "project": "dot-works",
+      "kind": "feature",
+      "title": "Old shipped card",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/dot-works/docs/intent/old.md",
+      "branch": "master",
+      "commits": 1,
+      "steps": [
+        {
+          "text": "done",
+          "done": true
+        }
+      ],
+      "shipped_on": "2026-09-10",
+      "agent": null
+    }
+  ],
+  "problems": []
+}

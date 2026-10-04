@@ -836,6 +836,12 @@
           "description": "Toggle sidebar collapse."
         },
         {
+          "key": "keys.open_task_board",
+          "type": "keybinding",
+          "default": "\"prefix+a\"",
+          "description": "Open or close the task board."
+        },
+        {
           "key": "keys.indexed.tabs",
           "type": "string",
           "default": "unset",
@@ -891,6 +897,28 @@
           "values": [
             "compact",
             "hidden"
+          ]
+        },
+        {
+          "key": "ui.sidebar_tree",
+          "type": "boolean",
+          "default": "false",
+          "description": "Show the expanded sidebar as one tree of spaces, tabs and panes."
+        },
+        {
+          "key": "ui.sidebar_tree_panel",
+          "type": "boolean",
+          "default": "true",
+          "description": "In the sidebar tree, show the bottom panel of what needs you and what is done."
+        },
+        {
+          "key": "ui.sidebar_tree_icons",
+          "type": "enum",
+          "default": "\"plain\"",
+          "description": "Glyphs in the sidebar tree: \"plain\" Unicode, or \"nerd\" for Nerd Font icons.",
+          "values": [
+            "plain",
+            "nerd"
           ]
         },
         {
@@ -1052,6 +1080,47 @@
           "values": [
             "dots",
             "symbols"
+          ]
+        },
+        {
+          "key": "ui.working_spinner",
+          "type": "enum",
+          "default": "\"braille\"",
+          "description": "The sidebar tree's spinner for a working agent. The Nerd Font sets (\"nerd_spinner\", \"circle_slices\", \"moon_phases\") need ui.sidebar_tree_icons = \"nerd\" and fall back to braille otherwise. The retired names still load: \"braille_full\" and \"blocks\" as braille, \"moon\" as moon_phases, \"clock\" as circle_slices. A sub-agent's row nested under its lead spins ui.sub_agent_spinner instead.",
+          "values": [
+            "nerd_spinner",
+            "braille",
+            "circle_slices",
+            "moon_phases",
+            "arc",
+            "half_circles",
+            "braille_chase",
+            "dot_orbit",
+            "pulse",
+            "line",
+            "star",
+            "diamond"
+          ]
+        },
+        {
+          "key": "ui.sub_agent_spinner",
+          "type": "enum",
+          "default": "\"auto\"",
+          "description": "The sidebar tree's spinner for a working sub-agent nested under its lead. \"auto\" follows ui.working_spinner with a set that goes with it (braille, arc and braille_chase pair with dot_orbit; nerd_spinner, dot_orbit, pulse and line with braille_chase; circle_slices and half_circles with nerd_spinner; moon_phases with arc; star and diamond with pulse); a set named here overrides it and stays when the main spinner changes. Nerd Font sets fall back to braille without ui.sidebar_tree_icons = \"nerd\".",
+          "values": [
+            "auto",
+            "nerd_spinner",
+            "braille",
+            "circle_slices",
+            "moon_phases",
+            "arc",
+            "half_circles",
+            "braille_chase",
+            "dot_orbit",
+            "pulse",
+            "line",
+            "star",
+            "diamond"
           ]
         },
         {
@@ -1447,6 +1516,18 @@
           "type": "string",
           "default": "\"~/.herdr/worktrees\"",
           "description": "Root directory under which Herdr creates <repo>/<branch-slug> checkouts."
+        }
+      ]
+    },
+    {
+      "id": "tasks",
+      "title": "Tasks",
+      "keys": [
+        {
+          "key": "tasks.command",
+          "type": "string",
+          "default": "unset",
+          "description": "Program the server runs as `<command> list --json` to answer `tasks.list`: a path (`~` allowed) or a name on the server's PATH. Unset turns the tasks list off. Applied on config reload."
         }
       ]
     },

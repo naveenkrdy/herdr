@@ -42,7 +42,24 @@ impl ClientShellState {
             integration_messages: Vec::new(),
             loading_integrations: false,
             installing_integrations: false,
+            sidebar_switches: self.sidebar_switches(),
+            indicators: self.indicator_choices(),
         }));
+    }
+
+    fn indicator_choices(&self) -> IndicatorChoices {
+        IndicatorChoices {
+            status: self.config.status_indicators,
+            spinner: self.config.working_spinner,
+            sub_spinner: self.config.sub_agent_spinner,
+        }
+    }
+
+    fn sidebar_switches(&self) -> SidebarSwitches {
+        SidebarSwitches {
+            tree: self.config.sidebar_tree,
+            panel: self.config.sidebar_tree_panel,
+        }
     }
 
     fn selected_index_for_settings_section(&self, section: ClientSettingsSection) -> usize {
@@ -52,6 +69,8 @@ impl ClientShellState {
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
             ClientSettingsSection::Integrations => 0,
+            // The sidebar section lists switches; the cursor starts on the first.
+            ClientSettingsSection::Sidebar => 0,
         }
     }
 
@@ -97,7 +116,9 @@ impl ClientShellState {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
                 ClientSettingsSection::Theme => crate::config::THEME_NAMES.len(),
-                ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
+                ClientSettingsSection::Indicators => IndicatorChoices::LINES,
+                ClientSettingsSection::Sound => 2,
+                ClientSettingsSection::Sidebar => SidebarSwitches::LINES,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
             },
@@ -197,15 +218,24 @@ impl ClientShellState {
                 }
             }
             ClientSettingsSection::Indicators => {
-                let style = if selected == 0 {
-                    crate::config::StatusIndicatorStyle::Dots
-                } else {
-                    crate::config::StatusIndicatorStyle::Symbols
+                let edit = match IndicatorChoices::line(selected) {
+                    Some(IndicatorLine::Status(style)) => {
+                        crate::config::ConfigEdit::StatusIndicators(style)
+                    }
+                    Some(IndicatorLine::Spinner(style)) => {
+                        crate::config::ConfigEdit::WorkingSpinner(style)
+                    }
+                    Some(IndicatorLine::SubSpinner(style)) => {
+                        crate::config::ConfigEdit::SubAgentSpinner(style)
+                    }
+                    None => return,
                 };
-                self.save_settings_edit(
-                    crate::config::ConfigEdit::StatusIndicators(style),
-                    outcome,
-                );
+                if self.save_settings_edit(edit, outcome) {
+                    let choices = self.indicator_choices();
+                    if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                        settings.indicators = choices;
+                    }
+                }
             }
             ClientSettingsSection::Sound => {
                 self.save_settings_edit(crate::config::ConfigEdit::Sound(selected == 0), outcome);
@@ -223,6 +253,20 @@ impl ClientShellState {
                 );
             }
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
+            ClientSettingsSection::Sidebar => {
+                // Enter switches the selected line.
+                let switches = self.sidebar_switches();
+                let edit = match selected {
+                    0 => crate::config::ConfigEdit::SidebarTree(!switches.tree),
+                    _ => crate::config::ConfigEdit::SidebarTreePanel(!switches.panel),
+                };
+                if self.save_settings_edit(edit, outcome) {
+                    let switches = self.sidebar_switches();
+                    if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                        settings.sidebar_switches = switches;
+                    }
+                }
+            }
         }
     }
 

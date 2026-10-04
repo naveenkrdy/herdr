@@ -3,6 +3,8 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 const SELECTION_AUTOSCROLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(30);
 const SELECTION_REPAINT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
+/// The most time between two clicks on the same place that makes them a double click.
+pub(super) const DOUBLE_CLICK_TIME: std::time::Duration = std::time::Duration::from_millis(350);
 
 impl ClientShellState {
     fn set_sidebar_width_from_column(&mut self, column: u16, outcome: &mut ClientShellInput) {
@@ -508,7 +510,38 @@ impl ClientShellState {
         Some(last_index + 1)
     }
 
+    /// The pane a tree space row (or its branch line) under `point` stands for.
+    fn tree_space_pane_at(&self, point: (u16, u16)) -> Option<String> {
+        if self.sidebar_collapsed {
+            return None;
+        }
+        self.hits
+            .tree_space_agents
+            .iter()
+            .chain(&self.hits.tree_space_shells)
+            .find(|(rect, _)| super::contains(*rect, point))
+            .map(|(_, pane_id)| pane_id.clone())
+    }
+
+    fn workspace_press_at(&self, point: (u16, u16)) -> Option<ClientWorkspacePress> {
+        self.hits
+            .workspaces
+            .iter()
+            .find(|hit| super::contains(hit.rect, point))
+            .map(|hit| ClientWorkspacePress {
+                endpoint_id: hit.endpoint_id.clone(),
+                workspace_id: hit.workspace_id.clone(),
+                start_column: point.0,
+                start_row: point.1,
+            })
+    }
+
+    /// Where a dragged space would drop: the space it goes before (None: last) and the row
+    /// that shows the line.
     fn workspace_drop_target_at(&self, point: (u16, u16)) -> Option<(Option<String>, u16)> {
+        if self.tree_sidebar_mode() && !self.sidebar_collapsed {
+            return self.tree_workspace_drop_target_at(point);
+        }
         if self.hits.workspace_body.height == 0
             || point.1 < self.hits.workspace_body.y.saturating_sub(1)
             || point.1 >= self.hits.new_workspace.y
@@ -576,6 +609,61 @@ impl ClientShellState {
             if row < self.hits.new_workspace.y {
                 slots.push((before, row));
             }
+        }
+        slots
+            .into_iter()
+            .enumerate()
+            .min_by_key(|(index, (_, row))| (point.1.abs_diff(*row), *index))
+            .map(|(_, target)| target)
+    }
+
+    /// The tree's drop slots sit only between whole spaces, so a space's tabs and agents never
+    /// split: on the row just above each space row, and just below the last space's last row.
+    /// A drop elsewhere in the body takes the nearest slot.
+    fn tree_workspace_drop_target_at(&self, point: (u16, u16)) -> Option<(Option<String>, u16)> {
+        let body = self.hits.workspace_body;
+        // The header's blank row under its word holds the slot above the first space.
+        if body.is_empty()
+            || point.0 < body.x
+            || point.0 >= body.right()
+            || point.1 < body.y.saturating_sub(1)
+            || point.1 >= body.bottom()
+        {
+            return None;
+        }
+        let snapshot = self.snapshot.as_deref()?;
+        // Nothing moves just before a linked worktree: it goes with its root.
+        let linked = |workspace_id: &str| {
+            snapshot.workspaces.iter().any(|workspace| {
+                workspace.workspace_id == workspace_id
+                    && workspace
+                        .worktree
+                        .as_ref()
+                        .is_some_and(|worktree| worktree.is_linked_worktree)
+            })
+        };
+        let mut slots = self
+            .hits
+            .workspaces
+            .iter()
+            .filter(|hit| !linked(&hit.workspace_id))
+            .map(|hit| (Some(hit.workspace_id.clone()), hit.rect.y.saturating_sub(1)))
+            .collect::<Vec<_>>();
+        // The last slot shows once the list's end does, on the body's last row at most.
+        let at_end = self
+            .hits
+            .workspace_scroll_metrics
+            .is_some_and(|metrics| metrics.offset_from_bottom == 0);
+        let last_row_end = self
+            .hits
+            .workspaces
+            .iter()
+            .map(|hit| hit.rect)
+            .chain(self.hits.tree_rows.iter().map(|(rect, _)| *rect))
+            .map(|rect| rect.bottom())
+            .max();
+        if let Some(end) = last_row_end.filter(|_| at_end) {
+            slots.push((None, end.min(body.bottom().saturating_sub(1))));
         }
         slots
             .into_iter()
@@ -676,9 +764,45 @@ impl ClientShellState {
         }
     }
 
+    /// Tracks the tree space row under the mouse, which shows its new tab `+`, and the tree
+    /// sidebar's or rail's row under it, which draws grey; true when either changed and the
+    /// sidebar must repaint.
+    fn hover_tree_rows(&mut self, point: (u16, u16)) -> bool {
+        let (space, row) = if self.tree_sidebar_mode() {
+            let hovered = self
+                .hits
+                .workspaces
+                .iter()
+                .find(|hit| super::contains(hit.rect, point));
+            // In tree mode only the tree or its rail draws these: spaces, tabs and panes, the
+            // box's entries, and the rail's agents.
+            let row = hovered.map(|hit| hit.rect).or_else(|| {
+                self.hits
+                    .tree_rows
+                    .iter()
+                    .chain(&self.hits.tree_panel)
+                    .map(|(rect, _)| *rect)
+                    .chain(self.hits.agents.iter().map(|(rect, _)| *rect))
+                    .find(|rect| super::contains(*rect, point))
+            });
+            (hovered.map(|hit| hit.workspace_id.clone()), row)
+        } else {
+            (None, None)
+        };
+        if space == self.hovered_tree_space && row == self.hovered_tree_row {
+            return false;
+        }
+        self.hovered_tree_space = space;
+        self.hovered_tree_row = row;
+        true
+    }
+
     pub(super) fn handle_mouse(&mut self, mouse: MouseEvent, outcome: &mut ClientShellInput) {
         self.update_link_hover(mouse, outcome);
         let point = (mouse.column, mouse.row);
+        if mouse.kind == MouseEventKind::Moved {
+            outcome.repaint |= self.hover_tree_rows(point);
+        }
         if self.mode == ClientShellMode::Navigate
             && self.workspace_preview_action_blocked()
             && self.overlay.is_none()
@@ -1219,8 +1343,7 @@ impl ClientShellState {
                     .max(mouse.row.abs_diff(press.start_row));
                 if delta >= 1 {
                     let source_workspace_id = press.workspace_id.clone();
-                    let draggable = self.endpoint_workspace_is_draggable(press);
-                    if draggable {
+                    if self.endpoint_workspace_is_draggable(press) {
                         if let Some(target) = self.workspace_drop_target_at(point) {
                             self.chrome_drag = Some(ClientChromeDrag::Workspace {
                                 source_workspace_id,
@@ -1365,7 +1488,16 @@ impl ClientShellState {
                 return;
             }
             if let Some(press) = self.workspace_press.take() {
-                self.finish_endpoint_workspace_press(press, outcome);
+                // A tree space row that stands for a pane focused it on the press already;
+                // decided by the space, since a frame since the press can move its row.
+                let focused_on_press = self.tree_sidebar_mode()
+                    && !self.sidebar_collapsed
+                    && self.snapshot.as_deref().is_some_and(|snapshot| {
+                        super::tree_sidebar::space_row_pane(snapshot, &press.workspace_id).is_some()
+                    });
+                if !focused_on_press {
+                    self.finish_endpoint_workspace_press(press, outcome);
+                }
                 return;
             }
             if let Some(press) = self.tab_press.take() {
@@ -1775,8 +1907,18 @@ impl ClientShellState {
         if self.scroll_in_progress_selection(mouse, outcome) {
             return;
         }
+        if self.route_task_board_mouse(mouse, outcome) {
+            return;
+        }
 
         match mouse.kind {
+            // A right click on the tree's filter icon shows every row again.
+            MouseEventKind::Down(MouseButton::Right)
+                if super::contains(self.hits.tree_filter, point) =>
+            {
+                self.tree_filter = super::tree_sidebar::TreeFilter::All;
+                outcome.repaint = true;
+            }
             MouseEventKind::Down(MouseButton::Right) => {
                 let pane_hit = self
                     .hits
@@ -1830,11 +1972,58 @@ impl ClientShellState {
                 if !self.config.mouse_capture {
                     return;
                 }
+                // A tree space row standing for a pane, its only agent or its first shell, gets
+                // the pane's row menu with the space's items; its `+` keeps the space's menu.
+                let space_agent = self
+                    .hits
+                    .tree_space_agents
+                    .iter()
+                    .chain(&self.hits.tree_space_shells)
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .filter(|_| {
+                        !self
+                            .hits
+                            .tree_new_tab
+                            .iter()
+                            .any(|(rect, _)| super::contains(*rect, point))
+                    })
+                    .map(|(_, pane_id)| pane_id.clone());
+                if let Some(pane_id) = space_agent.filter(|_| !self.sidebar_collapsed) {
+                    self.open_row_menu(pane_id, true, mouse.column, mouse.row);
+                    outcome.repaint = true;
+                    return;
+                }
                 let workspace_id = (!self.sidebar_collapsed)
                     .then(|| self.active_endpoint_workspace_at(point))
                     .flatten();
                 if let Some(workspace_id) = workspace_id {
                     self.open_workspace_context_menu(workspace_id, mouse.column, mouse.row);
+                    outcome.repaint = true;
+                    return;
+                }
+                // Tree rows, panel items and `+` cells exist only in the expanded tree sidebar.
+                let tree_target = self
+                    .hits
+                    .tree_rows
+                    .iter()
+                    .chain(&self.hits.tree_panel)
+                    .chain(&self.hits.tree_new_tab)
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .map(|(_, target)| target.clone());
+                if let Some(target) = tree_target {
+                    match target {
+                        super::tree_sidebar::TreeTarget::Tab(tab_id) => {
+                            self.open_tab_row_menu(tab_id, mouse.column, mouse.row);
+                        }
+                        // A lone agent's row shows the agent, so it gets the pane's row menu.
+                        super::tree_sidebar::TreeTarget::Pane(pane_id)
+                        | super::tree_sidebar::TreeTarget::AgentTab { pane_id, .. } => {
+                            self.open_row_menu(pane_id, false, mouse.column, mouse.row);
+                        }
+                        super::tree_sidebar::TreeTarget::NewTab(workspace_id) => {
+                            self.open_workspace_context_menu(workspace_id, mouse.column, mouse.row);
+                        }
+                    }
                     outcome.repaint = true;
                     return;
                 }
@@ -1939,9 +2128,9 @@ impl ClientShellState {
                     && !super::contains(self.hits.sidebar_toggle, point)
                 {
                     let now = std::time::Instant::now();
-                    let double_click = self.last_sidebar_divider_click.is_some_and(|last| {
-                        now.duration_since(last) <= std::time::Duration::from_millis(350)
-                    });
+                    let double_click = self
+                        .last_sidebar_divider_click
+                        .is_some_and(|last| now.duration_since(last) <= DOUBLE_CLICK_TIME);
                     self.last_sidebar_divider_click = Some(now);
                     if double_click {
                         self.sidebar_width = self.config.sidebar_width;
@@ -2033,6 +2222,29 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
+                // The tree header's `+` always asks for the name, whatever the prompt setting.
+                if super::contains(self.hits.new_workspace_header, point) {
+                    self.open_new_workspace_overlay();
+                    outcome.repaint = true;
+                    return;
+                }
+                // The tree header's search is the go-to navigator, as its key opens it.
+                if super::contains(self.hits.tree_search, point) {
+                    self.open_navigator_overlay();
+                    outcome.repaint = true;
+                    return;
+                }
+                if super::contains(self.hits.tree_filter, point) {
+                    self.tree_filter = self.tree_filter.next();
+                    outcome.repaint = true;
+                    return;
+                }
+                if super::contains(self.hits.tree_fold_all, point) {
+                    self.toggle_all_space_folds();
+                    outcome.repaint = true;
+                    self.persist_chrome_preferences(outcome);
+                    return;
+                }
                 if super::contains(self.hits.new_workspace, point) {
                     self.record_binding(
                         crate::input::KeybindMatch::Action(
@@ -2094,18 +2306,46 @@ impl ClientShellState {
                     self.persist_chrome_preferences(outcome);
                     return;
                 }
-                let workspace_press = self
+                // A split tab's fold arrow: folding is the client's own, like a space's.
+                let tab_fold = self
                     .hits
-                    .workspaces
+                    .tree_tab_folds
                     .iter()
-                    .find(|hit| super::contains(hit.rect, point))
-                    .map(|hit| ClientWorkspacePress {
-                        endpoint_id: hit.endpoint_id.clone(),
-                        workspace_id: hit.workspace_id.clone(),
-                        start_column: mouse.column,
-                        start_row: mouse.row,
-                    });
-                if let Some(workspace_press) = workspace_press {
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .map(|(_, tab_id)| super::tree_sidebar::tree_tab_fold_key(tab_id));
+                if let Some(key) = tab_fold {
+                    let endpoint_id = self.active_endpoint_id.clone();
+                    self.toggle_collapsed_group(&endpoint_id, key);
+                    outcome.repaint = true;
+                    self.persist_chrome_preferences(outcome);
+                    return;
+                }
+                // Before the space rows: a space row's `+` cell sits inside its row.
+                let tree_target = self
+                    .hits
+                    .tree_rows
+                    .iter()
+                    .chain(&self.hits.tree_panel)
+                    .chain(&self.hits.tree_new_tab)
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .map(|(_, target)| target.clone());
+                if let Some(target) = tree_target {
+                    self.push_endpoint_method(target.click_method(), outcome);
+                    return;
+                }
+                // A tree space row and its branch line stand for the space's first pane: the
+                // press focuses it, and the space is still dragged if the mouse moves on.
+                if let Some(pane_id) = self.tree_space_pane_at(point) {
+                    self.push_endpoint_method(
+                        crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
+                            pane_id,
+                        }),
+                        outcome,
+                    );
+                    self.workspace_press = self.workspace_press_at(point);
+                    return;
+                }
+                if let Some(workspace_press) = self.workspace_press_at(point) {
                     self.workspace_press = Some(workspace_press);
                     return;
                 }

@@ -2567,6 +2567,43 @@ impl HeadlessServer {
                 );
                 navigation_changed | geometry_changed
             }
+            ServerEvent::ClientShellEndpointSideResponseChunkReady {
+                client_id,
+                boot_id,
+                request_id,
+                final_chunk,
+                data,
+            } => {
+                let Some(client) = self.clients.get_mut(&client_id) else {
+                    return false;
+                };
+                let waiting = [
+                    &mut client.shell_side_list_request_id,
+                    &mut client.shell_side_act_request_id,
+                    &mut client.shell_side_open_request_id,
+                ]
+                .into_iter()
+                .find(|waiting| waiting.as_deref() == Some(request_id.as_str()));
+                let Some(waiting) = waiting.filter(|_| {
+                    matches!(client.mode, ClientConnectionMode::ClientShell)
+                        && boot_id == self.client_shell_boot_id
+                }) else {
+                    return false;
+                };
+                if final_chunk {
+                    *waiting = None;
+                }
+                self.send_to_client(
+                    client_id,
+                    ServerMessage::ClientShellEndpointResponseChunk {
+                        boot_id,
+                        request_id,
+                        final_chunk,
+                        data,
+                    },
+                );
+                false
+            }
             ServerEvent::ClientDetach { client_id } => {
                 info!(client_id, "client detached");
                 self.send_terminal_stream_detach_shutdown(client_id);
@@ -2962,6 +2999,14 @@ impl HeadlessServer {
                 .app
                 .handle_deferred_agent_api_request(msg.request, msg.respond_to);
             return changed | deferred_changed;
+        }
+        if matches!(
+            &msg.request.method,
+            api::schema::Method::TasksList(_) | api::schema::Method::TasksAct(_)
+        ) {
+            self.app
+                .handle_deferred_tasks_api_request(msg.request, msg.respond_to);
+            return changed;
         }
         if matches!(
             &msg.request.method,

@@ -60,6 +60,8 @@ pub(super) fn snapshot() -> ClientShellSnapshot {
             foreground_cwd: Some("/repo".into()),
             focused: true,
             right_click_passthrough: false,
+            git_branch: None,
+            plugin_id: None,
         }],
         agents: Vec::new(),
         commands: Vec::new(),
@@ -183,6 +185,7 @@ fn pane_scroll_result(
             focused: true,
             cwd: None,
             foreground_cwd: None,
+            git_branch: None,
             restore_error: None,
             label: None,
             agent: None,
@@ -249,6 +252,7 @@ mod agents_worktrees_notifications;
 mod chrome_context;
 mod close_tab;
 mod copy;
+mod dialog_keys;
 mod endpoint_requests;
 mod endpoints;
 mod graphics;
@@ -259,4 +263,7 @@ mod link_hover;
 mod mobile;
 mod mouse_selection;
 mod popup_focus_projection;
+mod sidebar_off_fixtures;
 mod startup_overlays;
+mod task_board;
+mod tree_sidebar;

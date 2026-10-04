@@ -574,6 +574,10 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return None;
                 }
+                if self.task_board.open {
+                    self.route_task_board_key(key, outcome);
+                    return None;
+                }
                 self.focused_pane_id().map(ClientInputTarget::Pane)
             }
             ClientShellMode::Prefix => {

@@ -12,6 +12,7 @@ const KNOWN_TOP_LEVEL_CONFIG_KEYS: &[&str] = &[
     "remote",
     "server",
     "session",
+    "tasks",
     "terminal",
     "theme",
     "ui",
@@ -358,6 +359,14 @@ fn load_live_config_from_str(content: &str) -> Result<LoadedConfig, Vec<String>>
         &mut diagnostics,
         &mut invalid_sections,
         |section| config.worktrees = section,
+    );
+    load_live_section(
+        table,
+        "tasks",
+        "tasks config",
+        &mut diagnostics,
+        &mut invalid_sections,
+        |section| config.tasks = section,
     );
     load_live_section(
         table,
@@ -901,6 +910,21 @@ resume_agents_on_restore = true
     }
 
     #[test]
+    fn load_live_config_parses_tasks_section() {
+        let loaded = load_live_config_from_str(
+            r#"
+[tasks]
+command = "claude-tasks"
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(loaded.config.tasks.command.as_deref(), Some("claude-tasks"));
+        assert!(loaded.diagnostics.is_empty());
+        assert!(loaded.invalid_sections.is_empty());
+    }
+
+    #[test]
     fn load_live_config_warns_about_unknown_theme_names() {
         let loaded = load_live_config_from_str(
             r#"
@@ -935,6 +959,23 @@ delivery = "herdr"
         assert_eq!(
             loaded.config.ui.toast.delivery,
             super::super::ToastDelivery::Herdr
+        );
+    }
+
+    #[test]
+    fn load_live_config_warns_about_the_retired_sidebar_tree_tasks_key() {
+        let loaded =
+            load_live_config_from_str("[ui]\nsidebar_tree = true\nsidebar_tree_tasks = false\n")
+                .unwrap();
+
+        assert_eq!(
+            loaded.diagnostics,
+            vec!["unknown config key ui.sidebar_tree_tasks; ignoring key"]
+        );
+        assert!(loaded.invalid_sections.is_empty());
+        assert!(
+            loaded.config.ui.sidebar_tree,
+            "the rest of [ui] still applies"
         );
     }
 

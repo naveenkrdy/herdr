@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "generated": "2026-09-28T10:15:00+05:30",
+  "tasks": [
+    {
+      "n": 1, "space": "oakwood", "project": "vscode", "task": "VS Code Workspace Trust",
+      "group": "you", "state": "keep off or turn on", "since": "2026-09-28", "first_seen": "2026-09-28",
+      "age_days": 0, "stale": false, "done_on": null, "agent": null,
+      "due": "2026-09-28", "due_text": "Today", "due_level": "today", "age_text": "new",
+      "starts_text": null, "action": "Keep off or turn on",
+      "copies": [{"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 40,
+                  "row": "| vscode | VS Code Workspace Trust | Nadine: keep off or turn on {due: 2026-09-28} | 2026-09-28 |"}]
+    },
+    {
+      "n": 2, "space": "oakwood", "project": "fern", "task": "Fern: next revenue refresh",
+      "group": "you", "state": "sign in to Oakwood", "since": "2026-09-28", "first_seen": "2026-09-28",
+      "age_days": 0, "stale": false, "done_on": null, "agent": null,
+      "due": "2026-10-01", "due_text": "Thu", "due_level": "soon", "age_text": "new",
+      "starts_text": null, "action": "Sign in to Oakwood",
+      "copies": [{"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 41,
+                  "row": "| fern | Fern: next revenue refresh | Nadine: sign in to Oakwood {due: 2026-10-01} | 2026-09-28 |"}]
+    },
+    {
+      "n": 3, "space": "dot-works", "project": "theme", "task": "Editors follow the theme",
+      "group": "claude", "state": "dotworks-w1 building", "since": "2026-09-28", "first_seen": "2026-09-28",
+      "age_days": 0, "stale": false, "done_on": null,
+      "agent": {"pane": "p-w1", "name": "dotworks-w1", "minutes": 12},
+      "due": null, "due_text": "", "due_level": null, "age_text": "new",
+      "starts_text": null, "action": "dotworks-w1 building",
+      "copies": [{"file": "/home/user/devbox/projects/repos/dot-works/.lead-notes/notes.md", "line": 12,
+                  "row": "| theme | Editors follow the theme | Claude: dotworks-w1 building | 2026-09-28 |"}]
+    },
+    {
+      "n": 4, "space": "dot-works", "project": "review", "task": "Judge design lens",
+      "group": "claude", "state": "write the lens", "since": "2026-09-25", "first_seen": "2026-09-25",
+      "age_days": 3, "stale": false, "done_on": null, "agent": null,
+      "due": null, "due_text": "", "due_level": null, "age_text": "3d",
+      "starts_text": "Starts tomorrow", "action": "write the lens",
+      "copies": [{"file": "/home/user/devbox/projects/repos/dot-works/.lead-notes/notes.md", "line": 13,
+                  "row": "| review | Judge design lens | Claude: write the lens {from: 2026-09-29} | 2026-09-25 |"}]
+    },
+    {
+      "n": 5, "space": "oakwood", "project": "rfc-tool", "task": "RFC: security answers",
+      "group": "waiting", "state": "Morgan: confirm", "since": "2026-09-16", "first_seen": "2026-09-16",
+      "age_days": 12, "stale": true, "done_on": null, "agent": null,
+      "due": null, "due_text": "", "due_level": null, "age_text": "12d",
+      "starts_text": null, "action": "Morgan: confirm",
+      "copies": [{"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 42,
+                  "row": "| rfc-tool | RFC: security answers | Morgan: confirm | 2026-09-16 |"}]
+    },
+    {
+      "n": 6, "space": "oakwood", "project": "sundial", "task": "Sundial: Sheet12 file",
+      "group": "waiting", "state": "Carmen: reply to both", "since": "2026-09-25", "first_seen": "2026-09-25",
+      "age_days": 3, "stale": false, "done_on": null, "agent": null,
+      "due": "2026-09-25", "due_text": "Overdue 3d", "due_level": "overdue", "age_text": "3d",
+      "starts_text": null, "action": "Carmen: reply to both",
+      "copies": [{"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 43,
+                  "row": "| sundial | Sundial: Sheet12 file | Carmen: reply to both {due: 2026-09-25} | 2026-09-25 |"}]
+    },
+    {
+      "n": 7, "space": "dot-works", "project": "theme", "task": "Theme generators in repo",
+      "group": "done", "state": "pushed e17c30f", "since": "2026-09-26", "first_seen": "2026-09-26",
+      "age_days": 2, "stale": false, "done_on": "2026-09-28", "agent": null,
+      "due": null, "due_text": "Today", "due_level": null, "age_text": "",
+      "starts_text": null, "action": "Pushed e17c30f",
+      "copies": [{"file": "/home/user/devbox/projects/repos/dot-works/.lead-notes/notes.md", "line": 20,
+                  "row": "| theme | Theme generators in repo | Done: pushed e17c30f | 2026-09-28 |"}]
+    }
+  ],
+  "work": [],
+  "problems": []
+}

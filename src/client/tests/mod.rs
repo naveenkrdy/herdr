@@ -70,6 +70,24 @@ fn direct_graphics_profile_is_narrow_and_transport_safe() {
 }
 
 #[test]
+fn ghostty_is_told_by_its_term_program_or_term() {
+    for (program, term, expected) in [
+        ("ghostty", "", true),
+        ("Ghostty", "xterm-256color", true),
+        ("", "xterm-ghostty", true),
+        ("Apple_Terminal", "xterm-256color", false),
+        ("herdr", "xterm-256color", false),
+        ("", "", false),
+    ] {
+        assert_eq!(
+            terminal_is_ghostty(program, term),
+            expected,
+            "{program:?} {term:?}"
+        );
+    }
+}
+
+#[test]
 fn server_graphics_files_require_local_filesystem_not_just_local_terminal() {
     let local = endpoint::ClientEndpointId::Local;
     let ssh = endpoint::ClientEndpointId::Ssh(

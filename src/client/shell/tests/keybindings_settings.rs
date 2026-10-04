@@ -826,3 +826,490 @@ fn resize_mode_reuses_endpoint_resize_and_stays_active_until_done() {
     assert!(state.handle_input_bytes(b"\r").actions.is_empty());
     assert_eq!(state.mode, ClientShellMode::Terminal);
 }
+
+#[test]
+fn live_client_config_reloads_sidebar_tree() {
+    let mut shell_config = ClientShellConfig::from_config(&Config::default());
+    assert!(!shell_config.sidebar_tree);
+
+    let mut config = Config::default();
+    config.ui.sidebar_tree = true;
+    shell_config.apply_live_config(&config, &[], &[]);
+    assert!(shell_config.sidebar_tree);
+
+    config.ui.sidebar_tree = false;
+    shell_config.apply_live_config(&config, &[], &[]);
+    assert!(!shell_config.sidebar_tree);
+}
+
+#[test]
+fn live_client_config_reloads_tree_panel_switch() {
+    let mut shell_config = ClientShellConfig::from_config(&Config::default());
+    assert!(shell_config.sidebar_tree_panel);
+
+    let mut config = Config::default();
+    config.ui.sidebar_tree_panel = false;
+    shell_config.apply_live_config(&config, &[], &[]);
+    assert!(!shell_config.sidebar_tree_panel);
+
+    shell_config.apply_live_config(&Config::default(), &[], &[]);
+    assert!(shell_config.sidebar_tree_panel);
+}
+
+#[test]
+fn live_client_config_reloads_tree_icons() {
+    use crate::config::SidebarTreeIconsConfig;
+    let mut shell_config = ClientShellConfig::from_config(&Config::default());
+    assert_eq!(
+        shell_config.sidebar_tree_icons,
+        SidebarTreeIconsConfig::Plain
+    );
+    let mut config = Config::default();
+    config.ui.sidebar_tree_icons = SidebarTreeIconsConfig::Nerd;
+    shell_config.apply_live_config(&config, &[], &[]);
+    assert_eq!(
+        shell_config.sidebar_tree_icons,
+        SidebarTreeIconsConfig::Nerd
+    );
+    shell_config.apply_live_config(&Config::default(), &[], &[]);
+    assert_eq!(
+        shell_config.sidebar_tree_icons,
+        SidebarTreeIconsConfig::Plain
+    );
+}
+
+#[test]
+fn settings_overlay_saves_and_applies_tree_detail_switches() {
+    struct ConfigPathGuard(Option<std::ffi::OsString>, std::path::PathBuf);
+    impl Drop for ConfigPathGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.1);
+            match self.0.take() {
+                Some(previous) => std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, previous),
+                None => std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR),
+            }
+        }
+    }
+    let dir = std::env::temp_dir().join(format!(
+        "herdr-client-shell-tree-details-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[ui]\nconfirm_close = false\n").unwrap();
+    let _guard = ConfigPathGuard(
+        std::env::var_os(crate::config::CONFIG_PATH_ENV_VAR),
+        dir.clone(),
+    );
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+
+    let frame_text = |state: &mut ClientShellState| {
+        let frame = state.compose(106, 30).expect("settings overlay");
+        frame
+            .cells
+            .chunks(frame.width as usize)
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol.as_str())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    for _ in 0..5 {
+        state.handle_input_bytes(b"\t");
+    }
+    let text = frame_text(&mut state);
+    for line in ["sidebar tree: off", "needs-you panel: on"] {
+        assert!(text.contains(line), "{line} missing:\n{text}");
+    }
+    assert!(
+        !text.contains("agent tasks"),
+        "the tasks line is gone:\n{text}"
+    );
+
+    state.handle_input_bytes(b"j");
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sidebar_tree_panel = false"),
+        "unexpected {written:?}"
+    );
+    assert!(!state.config.sidebar_tree_panel);
+
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sidebar_tree_panel = true"),
+        "unexpected {written:?}"
+    );
+    assert!(state.config.sidebar_tree_panel);
+    assert!(!state.config.sidebar_tree, "other switches untouched");
+    assert!(written.contains("confirm_close = false"));
+}
+
+#[test]
+fn settings_indicators_scroll_to_keep_the_selected_choice_drawn_in_a_short_window() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.handle_input_bytes(b"\t");
+    // Two status styles, twelve spinner sets for the main agent, and auto then twelve
+    // sets for its sub-agents; the cursor starts on the first.
+    for step in 0..27 {
+        state.compose(80, 24).expect("settings overlay");
+        let selected = match state.overlay.as_ref() {
+            Some(ClientShellOverlay::Settings(settings)) => settings.selected,
+            _ => panic!("settings open"),
+        };
+        assert_eq!(selected, step);
+        assert!(
+            state
+                .hits
+                .settings_choices
+                .iter()
+                .any(|(_, index)| *index == selected),
+            "choice {selected} is drawn at 80x24: {:?}",
+            state.hits.settings_choices
+        );
+        state.handle_input_bytes(b"j");
+    }
+}
+
+#[test]
+fn settings_indicators_draw_every_choice_at_once_in_a_tall_window() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.handle_input_bytes(b"\t");
+    state.compose(106, 80).expect("settings overlay");
+    let mut drawn = state
+        .hits
+        .settings_choices
+        .iter()
+        .map(|(_, index)| *index)
+        .collect::<Vec<_>>();
+    drawn.sort_unstable();
+    assert_eq!(drawn, (0..IndicatorChoices::LINES).collect::<Vec<_>>());
+}
+
+#[test]
+fn settings_overlay_lists_and_saves_the_working_spinner() {
+    struct ConfigPathGuard(Option<std::ffi::OsString>, std::path::PathBuf);
+    impl Drop for ConfigPathGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.1);
+            match self.0.take() {
+                Some(previous) => std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, previous),
+                None => std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR),
+            }
+        }
+    }
+    let dir = std::env::temp_dir().join(format!(
+        "herdr-client-shell-working-spinner-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[ui]\nstatus_indicators = \"symbols\"\n").unwrap();
+    let _guard = ConfigPathGuard(
+        std::env::var_os(crate::config::CONFIG_PATH_ENV_VAR),
+        dir.clone(),
+    );
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+
+    let mut config = Config::default();
+    config.ui.status_indicators = crate::config::StatusIndicatorStyle::Symbols;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.handle_input_bytes(b"\t");
+    let frame = state.compose(106, 40).expect("settings overlay");
+    let text = frame
+        .cells
+        .chunks(frame.width as usize)
+        .map(|row| {
+            row.iter()
+                .map(|cell| cell.symbol.as_str())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for label in [
+        "agent status indicators",
+        "main agent spinner",
+        "nerd spinner",
+        "braille ✓",
+        "circle slices",
+        "moon phases",
+        "arc",
+        "half circles",
+        "braille chase",
+        "dot orbit",
+        "pulse",
+        "line",
+        "star",
+        "diamond",
+    ] {
+        assert!(text.contains(label), "{label:?} missing:\n{text}");
+    }
+    for dropped in ["braille full", "clock", "blocks"] {
+        assert!(!text.contains(dropped), "{dropped:?} is listed:\n{text}");
+    }
+
+    // The cursor starts on the status style in use (symbols, the second line); the
+    // spinner sets follow, so six down is half circles, the sixth set.
+    for _ in 0..6 {
+        state.handle_input_bytes(b"j");
+    }
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("working_spinner = \"half_circles\""),
+        "unexpected {written:?}"
+    );
+    assert!(written.contains("status_indicators = \"symbols\""));
+    assert_eq!(
+        state.config.working_spinner,
+        crate::config::WorkingSpinnerStyle::HalfCircles
+    );
+    assert_eq!(
+        state.config.status_indicators,
+        crate::config::StatusIndicatorStyle::Symbols,
+        "the status style is untouched"
+    );
+}
+
+#[test]
+fn settings_indicators_list_select_and_save_both_spinners_at_80x24() {
+    struct ConfigPathGuard(Option<std::ffi::OsString>, std::path::PathBuf);
+    impl Drop for ConfigPathGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.1);
+            match self.0.take() {
+                Some(previous) => std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, previous),
+                None => std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR),
+            }
+        }
+    }
+    let dir = std::env::temp_dir().join(format!(
+        "herdr-client-shell-sub-agent-spinner-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[ui]\nworking_spinner = \"moon_phases\"\n").unwrap();
+    let _guard = ConfigPathGuard(
+        std::env::var_os(crate::config::CONFIG_PATH_ENV_VAR),
+        dir.clone(),
+    );
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+
+    let mut config = Config::default();
+    config.ui.working_spinner = crate::config::WorkingSpinnerStyle::MoonPhases;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.handle_input_bytes(b"\t");
+    let screen = |state: &mut ClientShellState| {
+        let frame = state.compose(80, 24).expect("settings overlay");
+        frame
+            .cells
+            .chunks(frame.width as usize)
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol.as_str())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    // Walk every choice: the status styles, the main agent's twelve sets, then the
+    // sub-agents' auto and twelve sets.
+    let mut seen = String::new();
+    let mut at_auto = String::new();
+    for step in 0..27 {
+        let text = screen(&mut state);
+        if step == 14 {
+            at_auto.clone_from(&text);
+        }
+        seen.push_str(&text);
+        assert!(
+            state
+                .hits
+                .settings_choices
+                .iter()
+                .any(|(_, index)| *index == step),
+            "choice {step} is drawn at 80x24"
+        );
+        state.handle_input_bytes(b"j");
+    }
+    for label in ["main agent spinner", "sub-agent spinner"] {
+        assert!(seen.contains(label), "{label:?} missing");
+    }
+    // The sub-agents' list marks its own choice in use: auto, showing the set it resolves
+    // to, moon phases' partner arc.
+    assert!(at_auto.contains("sub-agent spinner"), "{at_auto}");
+    assert!(
+        at_auto.contains("auto (goes with main: arc) ✓"),
+        "{at_auto}"
+    );
+
+    // The last choice is the sub-agents' diamond; apply saves only the sub-agent key.
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sub_agent_spinner = \"diamond\""),
+        "unexpected {written:?}"
+    );
+    assert!(
+        written.contains("working_spinner = \"moon_phases\""),
+        "{written:?}"
+    );
+    assert_eq!(
+        state.config.sub_agent_spinner,
+        crate::config::SubAgentSpinnerStyle::Diamond
+    );
+    assert_eq!(
+        state.config.working_spinner,
+        crate::config::WorkingSpinnerStyle::MoonPhases,
+        "the main agent's spinner is untouched"
+    );
+    let text = screen(&mut state);
+    assert!(text.contains("diamond ✓"), "{text}");
+
+    // Back up to the main agent's arc and apply: only the main key changes, and the
+    // sub-agents' pick survives it.
+    for _ in 0..(26 - 6) {
+        state.handle_input_bytes(b"k");
+    }
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("working_spinner = \"arc\""),
+        "unexpected {written:?}"
+    );
+    assert!(written.contains("sub_agent_spinner = \"diamond\""));
+    assert_eq!(
+        state.config.sub_agent_spinner,
+        crate::config::SubAgentSpinnerStyle::Diamond
+    );
+
+    // Auto again: the row names arc's partner, dot orbit.
+    for _ in 0..(14 - 6) {
+        state.handle_input_bytes(b"j");
+    }
+    state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sub_agent_spinner = \"auto\""),
+        "unexpected {written:?}"
+    );
+    let text = screen(&mut state);
+    assert!(
+        text.contains("auto (goes with main: dot orbit) ✓"),
+        "{text}"
+    );
+}
+
+#[test]
+fn settings_overlay_saves_and_applies_sidebar_tree() {
+    struct ConfigPathGuard(Option<std::ffi::OsString>, std::path::PathBuf);
+    impl Drop for ConfigPathGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.1);
+            match self.0.take() {
+                Some(previous) => std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, previous),
+                None => std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR),
+            }
+        }
+    }
+    let dir = std::env::temp_dir().join(format!(
+        "herdr-client-shell-sidebar-tree-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[ui]\nconfirm_close = false\n").unwrap();
+    let _guard = ConfigPathGuard(
+        std::env::var_os(crate::config::CONFIG_PATH_ENV_VAR),
+        dir.clone(),
+    );
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+
+    let frame_text = |state: &mut ClientShellState| {
+        let frame = state.compose(106, 30).expect("settings overlay");
+        frame
+            .cells
+            .chunks(frame.width as usize)
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol.as_str())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let reloads_server_config = |outcome: &ClientShellInput| {
+        outcome.actions.iter().any(|action| {
+            matches!(
+                action,
+                ClientShellAction::Endpoint { request, .. }
+                    if matches!(
+                        request.method,
+                        crate::api::schema::Method::ServerReloadConfig(_)
+                    )
+            )
+        })
+    };
+
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    assert!(frame_text(&mut state).contains(" sidebar "));
+
+    for _ in 0..5 {
+        state.handle_input_bytes(b"\t");
+    }
+    let text = frame_text(&mut state);
+    assert!(
+        text.contains("sidebar tree"),
+        "sidebar section missing:\n{text}"
+    );
+    assert!(!state.config.sidebar_tree);
+
+    state.handle_input_bytes(b"k");
+    let enable = state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sidebar_tree = true"),
+        "unexpected {written:?}"
+    );
+    assert!(written.contains("confirm_close = false"));
+    assert!(state.config.sidebar_tree);
+    assert!(reloads_server_config(&enable));
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(_))
+    ));
+
+    // Enter switches the selected line, so a second Enter turns the tree off again.
+    let disable = state.handle_input_bytes(b"\r");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.contains("sidebar_tree = false"),
+        "unexpected {written:?}"
+    );
+    assert!(!state.config.sidebar_tree);
+    assert!(reloads_server_config(&disable));
+}

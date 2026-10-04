@@ -701,6 +701,7 @@ mod tests {
             focused: true,
             cwd: None,
             foreground_cwd: None,
+            git_branch: None,
             restore_error: None,
             label: None,
             agent: None,

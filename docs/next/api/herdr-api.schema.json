@@ -799,6 +799,13 @@
                 "null"
               ]
             },
+            "git_branch": {
+              "description": "Git branch checked out in `cwd`, refreshed in the background.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "label": {
               "type": [
                 "string",
@@ -4357,6 +4364,83 @@
           ],
           "type": "object"
         },
+        "TaskCopy": {
+          "description": "One file row of a task, exactly as the task list gave it.",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "row"
+          ],
+          "type": "object"
+        },
+        "TasksActParams": {
+          "description": "One action on the task list, run by `tasks.command` against the notes files.\n\n`action` is `done`, `delete`, `move`, `reorder` or `new`. The first four name the task by\n`copies` (every file row of a merged task); `move` also takes `to` and `reorder` takes\n`direction` (`up` or `down`). `new` takes only `file`, `task` and `who`.",
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "copies": {
+              "items": {
+                "$ref": "#/schemas/request/$defs/TaskCopy"
+              },
+              "type": "array"
+            },
+            "direction": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "file": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "to": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "who": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        },
+        "TasksOpenParams": {
+          "description": "Opens one file the task list names, in an editor popup.",
+          "properties": {
+            "file": {
+              "description": "Exactly as the task list gave it, in `work[].file` or `tasks[].copies[].file`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "type": "object"
+        },
         "ToastHerdrPosition": {
           "enum": [
             "top-left",
@@ -6312,6 +6396,54 @@
             "params"
           ],
           "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "tasks.list",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/EmptyParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "tasks.act",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/TasksActParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "tasks.open",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/TasksOpenParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
         }
       ],
       "properties": {
@@ -7902,6 +8034,13 @@
               "type": "boolean"
             },
             "foreground_cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "git_branch": {
+              "description": "Git branch checked out in `cwd`, refreshed in the background.",
               "type": [
                 "string",
                 "null"
@@ -10401,6 +10540,44 @@
                 "type",
                 "active",
                 "projection_revision"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "The task list document printed by the configured `tasks.command`, checked to be version 1.",
+              "properties": {
+                "list": true,
+                "type": {
+                  "const": "tasks_list",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "list"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "Whether `tasks.command` did the action; when it refused, its reason.",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "tasks_act",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "ok"
               ],
               "type": "object"
             },

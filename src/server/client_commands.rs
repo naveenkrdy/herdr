@@ -43,6 +43,9 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "tab.focus",
     "tab.move",
     "tab.rename",
+    "tasks.act",
+    "tasks.list",
+    "tasks.open",
     "workspace.close",
     "workspace.create",
     "workspace.focus",
@@ -133,13 +136,35 @@ fn correlate_response_id(response: String, request_id: &str) -> String {
     serde_json::to_string(&value).unwrap_or(response)
 }
 
+/// Forwards the response to one endpoint request, in chunks, as server events: ordered-lane
+/// chunks when `ordered`, else side chunks, which leave the ordered lane alone.
 pub(crate) fn spawn_response_waiter(
     client_id: u64,
     boot_id: String,
     request_id: String,
     response_rx: mpsc::Receiver<String>,
     server_event_tx: tokio_mpsc::Sender<ServerEvent>,
+    ordered: bool,
 ) -> io::Result<()> {
+    let chunk_ready = move |boot_id, request_id, final_chunk, data| {
+        if ordered {
+            ServerEvent::ClientShellEndpointResponseChunkReady {
+                client_id,
+                boot_id,
+                request_id,
+                final_chunk,
+                data,
+            }
+        } else {
+            ServerEvent::ClientShellEndpointSideResponseChunkReady {
+                client_id,
+                boot_id,
+                request_id,
+                final_chunk,
+                data,
+            }
+        }
+    };
     std::thread::Builder::new()
         .name("herdr-client-endpoint-response".into())
         .spawn(move || {
@@ -152,27 +177,23 @@ pub(crate) fn spawn_response_waiter(
             });
             let response = correlate_response_id(response, &request_id).into_bytes();
             if response.is_empty() {
-                let _ = server_event_tx.blocking_send(
-                    ServerEvent::ClientShellEndpointResponseChunkReady {
-                        client_id,
-                        boot_id,
-                        request_id,
-                        final_chunk: true,
-                        data: Vec::new(),
-                    },
-                );
+                let _ = server_event_tx.blocking_send(chunk_ready(
+                    boot_id,
+                    request_id,
+                    true,
+                    Vec::new(),
+                ));
                 return;
             }
             let chunk_count = response.len().div_ceil(ENDPOINT_RESPONSE_CHUNK_BYTES);
             for (index, chunk) in response.chunks(ENDPOINT_RESPONSE_CHUNK_BYTES).enumerate() {
                 if server_event_tx
-                    .blocking_send(ServerEvent::ClientShellEndpointResponseChunkReady {
-                        client_id,
-                        boot_id: boot_id.clone(),
-                        request_id: request_id.clone(),
-                        final_chunk: index + 1 == chunk_count,
-                        data: chunk.to_vec(),
-                    })
+                    .blocking_send(chunk_ready(
+                        boot_id.clone(),
+                        request_id.clone(),
+                        index + 1 == chunk_count,
+                        chunk.to_vec(),
+                    ))
                     .is_err()
                 {
                     break;
@@ -297,6 +318,18 @@ mod tests {
             actual.remove("pane.link.resolve").as_deref(),
             Some("f5e4a3e01453ae7b188f127ce951c12c20e0bebcc17cc364eeb6d1a01fd5bf81")
         );
+        assert_eq!(
+            actual.remove("tasks.act").as_deref(),
+            Some("116d02cdd8a516317d68ba25a0338a3fdc3c4e364e8599bbcdbc4975d5d2d4b8")
+        );
+        assert_eq!(
+            actual.remove("tasks.open").as_deref(),
+            Some("079c402b4579b0f1dbf7dccd05ece7a424d1d68134226e3f76ef289f3eca0cc1")
+        );
+        assert_eq!(
+            actual.remove("tasks.list").as_deref(),
+            Some("a3adac7588f3cd5f2eab987045df0cc1e157cedabf4c15cac1000662125c7cf8")
+        );
 
         assert_eq!(
             actual, expected,
@@ -405,6 +438,7 @@ mod tests {
             "request-a".into(),
             response_rx,
             event_tx,
+            true,
         )
         .unwrap();
         let response = "x".repeat(ENDPOINT_RESPONSE_CHUNK_BYTES + 17);

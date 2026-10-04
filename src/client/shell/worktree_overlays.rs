@@ -69,28 +69,13 @@ pub(super) fn render_worktree_create_overlay(
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[20, 12], 2, 9);
+    let keys = [("Enter", "create and open"), CANCEL_KEY];
+    let buttons = row(inner, &dialog_key_widths(&keys), 2, 9);
     let [primary, cancel] = buttons.as_slice() else {
         return None;
     };
-    button(
-        b,
-        *primary,
-        " ↵ create and open ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.accent)
-            .add_modifier(Modifier::BOLD),
-    );
-    button(
-        b,
-        *cancel,
-        " esc cancel ",
-        Style::default()
-            .fg(p.text)
-            .bg(p.surface0)
-            .add_modifier(Modifier::BOLD),
-    );
+    dialog_key(b, *primary, keys[0], p);
+    dialog_key(b, *cancel, keys[1], p);
     Some(OverlayRender {
         area: popup,
         primary: *primary,
@@ -268,28 +253,18 @@ pub(super) fn render_worktree_open_overlay(
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[10, 12], 2, inner.height.saturating_sub(1));
+    let keys = [("Enter", "open"), CANCEL_KEY];
+    let buttons = row(
+        inner,
+        &dialog_key_widths(&keys),
+        2,
+        inner.height.saturating_sub(1),
+    );
     let [primary, cancel] = buttons.as_slice() else {
         return None;
     };
-    button(
-        b,
-        *primary,
-        " ↵ open ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.accent)
-            .add_modifier(Modifier::BOLD),
-    );
-    button(
-        b,
-        *cancel,
-        " esc cancel ",
-        Style::default()
-            .fg(p.text)
-            .bg(p.surface0)
-            .add_modifier(Modifier::BOLD),
-    );
+    dialog_key(b, *primary, keys[0], p);
+    dialog_key(b, *cancel, keys[1], p);
     Some(OverlayRender {
         area: popup,
         primary: *primary,
@@ -376,32 +351,20 @@ pub(super) fn render_worktree_remove_overlay(
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[18, 12], 2, 7);
+    let keys = [
+        if remove.force_confirmation {
+            ("Enter", "delete anyway")
+        } else {
+            ("Enter", "remove")
+        },
+        CANCEL_KEY,
+    ];
+    let buttons = row(inner, &dialog_key_widths(&keys), 2, 7);
     let [primary, cancel] = buttons.as_slice() else {
         return None;
     };
-    button(
-        b,
-        *primary,
-        if remove.force_confirmation {
-            " ↵ delete anyway "
-        } else {
-            " ↵ remove "
-        },
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.red)
-            .add_modifier(Modifier::BOLD),
-    );
-    button(
-        b,
-        *cancel,
-        " esc cancel ",
-        Style::default()
-            .fg(p.text)
-            .bg(p.surface0)
-            .add_modifier(Modifier::BOLD),
-    );
+    dialog_danger_key(b, *primary, keys[0], p);
+    dialog_key(b, *cancel, keys[1], p);
     Some(OverlayRender {
         area: popup,
         primary: *primary,

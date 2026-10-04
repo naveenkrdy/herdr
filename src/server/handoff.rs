@@ -1,4 +1,6 @@
 #[cfg(unix)]
+use std::collections::HashMap;
+#[cfg(unix)]
 use std::io::{self, Read, Write};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, RawFd};
@@ -47,6 +49,10 @@ pub(crate) struct HandoffManifest {
     /// Absent from manifests written before this field existed.
     #[serde(default)]
     pub api_window_title: Option<String>,
+    /// Workspace tokens by workspace id. Pane tokens ride in `panes`. Neither is
+    /// in the snapshot, which is also what a cold restart reads from disk.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub workspace_metadata_tokens: HashMap<String, crate::metadata_tokens::HandoffMetadataTokens>,
 }
 
 #[cfg(unix)]
@@ -307,6 +313,7 @@ pub(crate) fn manifest_for(
     expected_protocol: Option<u32>,
     expected_version: Option<String>,
     api_window_title: Option<String>,
+    workspace_metadata_tokens: HashMap<String, crate::metadata_tokens::HandoffMetadataTokens>,
 ) -> HandoffManifest {
     HandoffManifest {
         version: HANDOFF_VERSION,
@@ -317,7 +324,39 @@ pub(crate) fn manifest_for(
         snapshot,
         panes,
         api_window_title,
+        workspace_metadata_tokens,
     }
+}
+
+/// Workspace tokens for a live swap, by workspace id. They travel beside the
+/// session snapshot, never in it, so a cold restart from disk starts without
+/// labels whose writers are gone.
+#[cfg(unix)]
+pub(crate) fn workspace_metadata_tokens(
+    workspaces: &[crate::workspace::Workspace],
+    now: std::time::Instant,
+) -> HashMap<String, crate::metadata_tokens::HandoffMetadataTokens> {
+    workspaces
+        .iter()
+        .filter_map(|workspace| {
+            let sources = workspace
+                .metadata_token_sequences
+                .iter()
+                .map(
+                    |(source, seq)| crate::metadata_tokens::HandoffMetadataSource {
+                        source: source.clone(),
+                        seq: *seq,
+                        agent: None,
+                    },
+                )
+                .collect();
+            crate::metadata_tokens::HandoffMetadataTokens::new(
+                workspace.metadata_tokens.handoff_tokens(now),
+                sources,
+            )
+            .map(|tokens| (workspace.id.clone(), tokens))
+        })
+        .collect()
 }
 
 #[cfg(unix)]
@@ -549,6 +588,7 @@ mod tests {
             None,
             None,
             Some("deploying".to_string()),
+            HashMap::new(),
         );
 
         assert_eq!(manifest.api_window_title.as_deref(), Some("deploying"));
@@ -562,6 +602,7 @@ mod tests {
             None,
             None,
             Some("deploying".to_string()),
+            HashMap::new(),
         );
         let mut value = serde_json::to_value(&manifest).expect("manifest should serialize");
         value
@@ -573,5 +614,56 @@ mod tests {
             serde_json::from_value(value).expect("an older manifest should still load");
 
         assert!(older.api_window_title.is_none());
+    }
+
+    #[test]
+    fn a_handoff_manifest_carries_workspace_tokens_and_an_older_one_loads_without_them() {
+        let now = std::time::Instant::now();
+        let mut labelled = crate::workspace::Workspace::test_new("herdr");
+        labelled.metadata_tokens.patch(
+            HashMap::from([("project".to_string(), Some("herdr".to_string()))]),
+            None,
+            now,
+        );
+        labelled
+            .metadata_token_sequences
+            .insert("claude-tasks".into(), 4);
+        let labelled_id = labelled.id.clone();
+        let unlabelled = crate::workspace::Workspace::test_new("plain");
+        let manifest = manifest_for(
+            empty_snapshot(),
+            Vec::new(),
+            None,
+            None,
+            None,
+            workspace_metadata_tokens(&[labelled, unlabelled], now),
+        );
+        let value = serde_json::to_value(&manifest).expect("manifest should serialize");
+
+        let received: HandoffManifest =
+            serde_json::from_value(value.clone()).expect("the manifest should load");
+        let carried = received
+            .workspace_metadata_tokens
+            .get(&labelled_id)
+            .expect("the labelled workspace's tokens travel");
+        assert_eq!(received.workspace_metadata_tokens.len(), 1);
+        assert_eq!(
+            carried.tokens,
+            vec![crate::metadata_tokens::HandoffMetadataToken {
+                key: "project".into(),
+                value: "herdr".into(),
+                expires_in_ms: None,
+            }]
+        );
+        assert_eq!(carried.sources[0].seq, 4);
+
+        let mut older = value;
+        older
+            .as_object_mut()
+            .expect("manifest should be a json object")
+            .remove("workspace_metadata_tokens");
+        let older: HandoffManifest =
+            serde_json::from_value(older).expect("an older manifest should still load");
+        assert!(older.workspace_metadata_tokens.is_empty());
     }
 }

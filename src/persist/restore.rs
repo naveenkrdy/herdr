@@ -99,11 +99,12 @@ pub fn restore_handoff(
     default_shell: &str,
     shell_mode: crate::config::ShellModeConfig,
     imports: &mut HashMap<u32, crate::handoff_runtime::ImportedHandoffRuntime>,
+    workspace_metadata_tokens: HashMap<String, crate::metadata_tokens::HandoffMetadataTokens>,
     events: mpsc::Sender<AppEvent>,
     render_notify: Arc<Notify>,
     render_dirty: Arc<RenderSignal>,
 ) -> std::io::Result<RestoredSession> {
-    restore_with_imports_strict(
+    let (mut workspaces, terminals, runtimes) = restore_with_imports_strict(
         snapshot,
         None,
         24,
@@ -115,7 +116,35 @@ pub fn restore_handoff(
         events,
         render_notify,
         render_dirty,
-    )
+    )?;
+    restore_handoff_workspace_metadata_tokens(
+        &mut workspaces,
+        workspace_metadata_tokens,
+        std::time::Instant::now(),
+    );
+    Ok((workspaces, terminals, runtimes))
+}
+
+/// Puts back each workspace's carried tokens and their report order, by workspace id.
+#[cfg(unix)]
+fn restore_handoff_workspace_metadata_tokens(
+    workspaces: &mut [Workspace],
+    mut tokens: HashMap<String, crate::metadata_tokens::HandoffMetadataTokens>,
+    now: std::time::Instant,
+) {
+    for workspace in workspaces {
+        let Some(carried) = tokens.remove(&workspace.id) else {
+            continue;
+        };
+        workspace.metadata_tokens =
+            crate::metadata_tokens::MetadataTokens::from_handoff(carried.tokens, now);
+        workspace.metadata_token_sequences = carried
+            .sources
+            .into_iter()
+            .take(crate::metadata_tokens::MAX_SEQUENCE_SOURCES)
+            .map(|source| (source.source, source.seq))
+            .collect();
+    }
 }
 
 #[cfg(unix)]
@@ -586,6 +615,10 @@ fn restore_tab(
         let handoff_agent_state = imported_runtime
             .as_ref()
             .and_then(|imported| imported.state.agent_state.clone());
+        #[cfg(unix)]
+        let handoff_metadata_tokens = imported_runtime
+            .as_ref()
+            .and_then(|imported| imported.state.metadata_tokens.clone());
         let pending_native_agent_restore = if was_imported {
             None
         } else {
@@ -727,6 +760,13 @@ fn restore_tab(
                 #[cfg(unix)]
                 if let Some(agent_state) = handoff_agent_state {
                     terminal.restore_handoff_agent_state(agent_state);
+                }
+                #[cfg(unix)]
+                if let Some(metadata_tokens) = handoff_metadata_tokens {
+                    terminal.restore_handoff_metadata_tokens(
+                        metadata_tokens,
+                        std::time::Instant::now(),
+                    );
                 }
                 panes.insert(*id, PaneState::new(terminal_id.clone()));
                 terminal_runtimes.insert(terminal_id, runtime);
@@ -1925,6 +1965,7 @@ mod tests {
             test_restore_shell(),
             crate::config::ShellModeConfig::NonLogin,
             &mut imports,
+            HashMap::new(),
             mpsc::channel(4).0,
             Arc::new(Notify::new()),
             Arc::new(RenderSignal::new()),
@@ -2009,6 +2050,7 @@ mod tests {
                 test_restore_shell(),
                 crate::config::ShellModeConfig::NonLogin,
                 &mut imports,
+                HashMap::new(),
                 events,
                 Arc::new(Notify::new()),
                 Arc::new(RenderSignal::new()),
@@ -2044,6 +2086,137 @@ mod tests {
                 state_before_handoff == AgentState::Blocked
             );
         }
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn live_handoff_carries_metadata_tokens_and_cold_restore_does_not() {
+        let (snapshot, _) = snapshot_with_saved_pane_history();
+        let (events, _events_rx) = mpsc::channel(32);
+        let (mut workspaces, mut terminals, runtimes) = restore(
+            &snapshot,
+            None,
+            24,
+            80,
+            4096,
+            test_restore_shell(),
+            crate::config::ShellModeConfig::NonLogin,
+            false,
+            events.clone(),
+            Arc::new(Notify::new()),
+            Arc::new(RenderSignal::new()),
+        );
+        let now = std::time::Instant::now();
+        let pane_tokens = HashMap::from([
+            ("task".to_string(), "W37".to_string()),
+            ("stage".to_string(), "build".to_string()),
+            ("ask".to_string(), "pick a time".to_string()),
+            ("lead".to_string(), "dotworks-lead".to_string()),
+        ]);
+        let terminal = terminals.values_mut().next().unwrap();
+        assert_eq!(
+            terminal.accept_metadata_report("claude-tasks", Some(3), true, None),
+            Ok(true)
+        );
+        terminal.metadata_tokens.patch(
+            pane_tokens
+                .iter()
+                .map(|(key, value)| (key.clone(), Some(value.clone())))
+                .collect(),
+            None,
+            now,
+        );
+        workspaces[0].metadata_tokens.patch(
+            HashMap::from([("project".to_string(), Some("herdr".to_string()))]),
+            None,
+            now,
+        );
+        workspaces[0]
+            .metadata_token_sequences
+            .insert("claude-tasks".into(), 4);
+        let runtimes = crate::terminal::TerminalRuntimeRegistry::from(runtimes);
+        let snapshot = crate::persist::capture(&workspaces, &terminals, &runtimes, Some(0), 0);
+        let workspace_tokens = crate::server::handoff::workspace_metadata_tokens(&workspaces, now);
+        let workspace_tokens: HashMap<String, crate::metadata_tokens::HandoffMetadataTokens> =
+            serde_json::from_value(serde_json::to_value(workspace_tokens).unwrap()).unwrap();
+        let pane_id = workspaces[0].tabs[0].panes.keys().next().copied().unwrap();
+        let runtime = runtimes.values().next().unwrap();
+        runtime
+            .pause_handoff_reader(std::time::Duration::from_secs(2))
+            .unwrap();
+        let mut state = runtime.handoff_runtime_state(pane_id.raw());
+        state.metadata_tokens = terminals
+            .values()
+            .next()
+            .unwrap()
+            .handoff_metadata_tokens(now);
+        let state = serde_json::from_value(serde_json::to_value(state).unwrap()).unwrap();
+        let mut imports = HashMap::from([(
+            pane_id.raw(),
+            crate::handoff_runtime::ImportedHandoffRuntime {
+                master_fd: runtime.duplicate_handoff_fd().unwrap(),
+                state,
+            },
+        )]);
+        let (restored_workspaces, restored_terminals, restored_runtimes) = restore_handoff(
+            &snapshot,
+            4096,
+            test_restore_shell(),
+            crate::config::ShellModeConfig::NonLogin,
+            &mut imports,
+            workspace_tokens,
+            events.clone(),
+            Arc::new(Notify::new()),
+            Arc::new(RenderSignal::new()),
+        )
+        .unwrap();
+        drop(restored_runtimes);
+        drop(runtimes);
+
+        let restored = restored_terminals.values().next().unwrap();
+        assert_eq!(restored.metadata_tokens.values(), pane_tokens);
+        assert!(
+            !restored.metadata_report_sequence_is_fresh("claude-tasks", Some(3)),
+            "the pane keeps its report order across the swap"
+        );
+        assert_eq!(
+            restored_workspaces[0].metadata_tokens.values(),
+            HashMap::from([("project".to_string(), "herdr".to_string())])
+        );
+        assert_eq!(
+            restored_workspaces[0]
+                .metadata_token_sequences
+                .get("claude-tasks"),
+            Some(&4)
+        );
+
+        let saved: SessionSnapshot =
+            serde_json::from_value(serde_json::to_value(&snapshot).unwrap()).unwrap();
+        let (cold_workspaces, cold_terminals, _cold_runtimes) = restore(
+            &saved,
+            None,
+            24,
+            80,
+            4096,
+            test_restore_shell(),
+            crate::config::ShellModeConfig::NonLogin,
+            false,
+            events,
+            Arc::new(Notify::new()),
+            Arc::new(RenderSignal::new()),
+        );
+        assert!(
+            cold_terminals
+                .values()
+                .all(|terminal| terminal.metadata_tokens.values().is_empty()),
+            "a cold restart must not bring back pane labels"
+        );
+        assert!(
+            cold_workspaces
+                .iter()
+                .all(|workspace| workspace.metadata_tokens.values().is_empty()),
+            "a cold restart must not bring back workspace labels"
+        );
     }
 
     #[tokio::test]

@@ -8,6 +8,8 @@ pub(crate) struct ClientComposedSurfacePatch {
 pub(crate) enum ClientPaneSurfacePatchOutcome {
     Rejected,
     Applied(Option<ClientComposedSurfacePatch>),
+    /// Kept in the retained surface with nothing to draw: the task board covers the panes.
+    Retained,
 }
 
 fn row_fits_frame(row: &crate::protocol::PaneSurfacePatchRow, frame: &FrameData) -> bool {
@@ -168,6 +170,19 @@ impl ClientShellState {
             }
         }
 
+        // Under the open board the panes keep their output for when it closes, and nothing
+        // on screen changes, so there is nothing to compose.
+        if self.task_board.open {
+            let applied = self
+                .pane_surface
+                .as_mut()
+                .is_some_and(|surface| apply_patch_to_surface(surface, &patch));
+            return if applied {
+                ClientPaneSurfacePatchOutcome::Retained
+            } else {
+                ClientPaneSurfacePatchOutcome::Rejected
+            };
+        }
         let fast_path_blocker = fast_path_blocker(self, &patch);
         if let Some(reason) = fast_path_blocker {
             crate::render_prof::event(reason);

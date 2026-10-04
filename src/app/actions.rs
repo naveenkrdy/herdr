@@ -1,6 +1,7 @@
 //! Pure state mutations on AppState.
 //! These don't need channels, async, or PTY runtime.
 
+use std::collections::HashMap;
 use std::time::Instant;
 
 use tracing::warn;
@@ -11,7 +12,7 @@ use crate::layout::PaneId;
 #[cfg(test)]
 use crate::layout::{find_in_direction, NavDirection};
 use crate::terminal::{EffectiveStateChange, TerminalStateMutation};
-use crate::workspace::WorkspaceGitStatus;
+use crate::workspace::{PaneGitStatus, WorkspaceGitStatus};
 
 use super::api_helpers::pane_agent_status;
 use super::state::{
@@ -1389,6 +1390,50 @@ impl AppState {
         changed
     }
 
+    pub fn apply_pane_git_statuses(
+        &mut self,
+        terminal_runtimes: &crate::terminal::TerminalRuntimeRegistry,
+        results: Vec<PaneGitStatus>,
+    ) -> bool {
+        if results.is_empty() {
+            return false;
+        }
+        let mut results: HashMap<PaneId, PaneGitStatus> = results
+            .into_iter()
+            .map(|result| (result.pane_id, result))
+            .collect();
+        let mut pane_updates = Vec::new();
+        for tab in self.workspaces.iter().flat_map(|ws| &ws.tabs) {
+            for (&pane_id, pane) in &tab.panes {
+                let Some(result) = results.remove(&pane_id) else {
+                    continue;
+                };
+                // Drop lookups for a folder the pane has since left.
+                if tab
+                    .cwd_for_pane(pane_id, &self.terminals, terminal_runtimes)
+                    .as_ref()
+                    == Some(&result.cwd)
+                {
+                    pane_updates.push((pane.attached_terminal_id.clone(), result));
+                }
+            }
+        }
+
+        let mut changed = false;
+        for (terminal_id, result) in pane_updates {
+            let Some(terminal) = self.terminals.get_mut(&terminal_id) else {
+                continue;
+            };
+            terminal.git_cwd = Some(result.cwd);
+            terminal.git_status_key = Some(result.status_cache_key);
+            if terminal.git_branch != result.branch {
+                terminal.git_branch = result.branch;
+                changed = true;
+            }
+        }
+        changed
+    }
+
     pub fn handle_app_event(&mut self, event: AppEvent) -> Vec<PaneStateUpdate> {
         match event {
             AppEvent::PaneDied { pane_id, .. } => {
@@ -1640,17 +1685,12 @@ impl AppState {
                 }
                 Vec::new()
             }
-            AppEvent::GitStatusRefreshed {
-                results,
-                cache_updates,
-            } => {
-                let _ = results;
-                let _ = cache_updates;
-                Vec::new()
-            }
+            AppEvent::GitStatusRefreshed { .. } => Vec::new(),
             AppEvent::WorktreeAddFinished(_) => Vec::new(),
             AppEvent::WorktreeRemoveFinished(_) => Vec::new(),
             AppEvent::WorktreeReadFinished(_) => Vec::new(),
+            AppEvent::TasksListFinished(_) => Vec::new(),
+            AppEvent::TasksActFinished(_) => Vec::new(),
             AppEvent::TabBarCommandFinished { .. } => Vec::new(),
             AppEvent::PluginCommandFinished { .. } => Vec::new(),
         }
@@ -2115,6 +2155,7 @@ mod tests {
     use crate::detect::{Agent, AgentState};
     use crate::workspace::Workspace;
     use ratatui::layout::Direction;
+    use std::path::PathBuf;
 
     fn app_with_workspaces(names: &[&str]) -> AppState {
         let mut state = AppState::test_new();
@@ -2578,6 +2619,72 @@ mod tests {
         assert_eq!(state.workspaces[0].git_ahead_behind(), Some((2, 1)));
         assert_eq!(state.workspaces[1].id, second_id);
         assert_eq!(state.workspaces[1].git_ahead_behind(), None);
+    }
+
+    fn root_pane_terminal(state: &AppState) -> (PaneId, crate::terminal::TerminalId) {
+        let tab = &state.workspaces[0].tabs[0];
+        let pane_id = tab.root_pane;
+        (
+            pane_id,
+            tab.terminal_id(pane_id).expect("root terminal").clone(),
+        )
+    }
+
+    #[test]
+    fn apply_pane_git_statuses_updates_matching_pane() {
+        let mut state = app_with_workspaces(&["one"]);
+        let (pane_id, terminal_id) = root_pane_terminal(&state);
+        let cwd = state.workspaces[0].identity_cwd.clone();
+        let result = PaneGitStatus {
+            pane_id,
+            cwd: cwd.clone(),
+            status_cache_key: PathBuf::from("/repo"),
+            branch: Some("feat/tab".into()),
+        };
+
+        let terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
+        assert!(state.apply_pane_git_statuses(&terminal_runtimes, vec![result.clone()]));
+
+        let terminal = &state.terminals[&terminal_id];
+        assert_eq!(terminal.git_branch.as_deref(), Some("feat/tab"));
+        assert_eq!(terminal.git_cwd.as_ref(), Some(&cwd));
+        assert_eq!(terminal.git_status_key, Some(PathBuf::from("/repo")));
+        assert!(
+            !state.apply_pane_git_statuses(&terminal_runtimes, vec![result]),
+            "an unchanged branch must not request a render"
+        );
+    }
+
+    #[test]
+    fn apply_pane_git_statuses_ignores_stale_cwd_and_missing_panes() {
+        let mut state = app_with_workspaces(&["one"]);
+        let (pane_id, terminal_id) = root_pane_terminal(&state);
+        state.terminals.get_mut(&terminal_id).unwrap().git_branch = Some("old".into());
+
+        let terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
+        let changed = state.apply_pane_git_statuses(
+            &terminal_runtimes,
+            vec![
+                PaneGitStatus {
+                    pane_id,
+                    cwd: PathBuf::from("/definitely/not/current"),
+                    status_cache_key: PathBuf::from("/definitely/not/current"),
+                    branch: Some("main".into()),
+                },
+                PaneGitStatus {
+                    pane_id: PaneId::from_raw(u32::MAX),
+                    cwd: PathBuf::from("/gone"),
+                    status_cache_key: PathBuf::from("/gone"),
+                    branch: Some("main".into()),
+                },
+            ],
+        );
+
+        assert!(!changed);
+        assert_eq!(
+            state.terminals[&terminal_id].git_branch.as_deref(),
+            Some("old")
+        );
     }
 
     #[test]

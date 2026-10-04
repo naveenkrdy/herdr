@@ -17,6 +17,12 @@ pub(crate) struct ClientShellEndpoint {
     /// Connection generation that produced `snapshot`. `None` is reserved for local tests.
     pub(crate) snapshot_generation: Option<u64>,
     pub(crate) agent_recency: HashMap<String, u64>,
+    /// When this client first saw each pane's agent working; only working agents are kept.
+    pub(crate) working_since: HashMap<String, std::time::Instant>,
+    /// When this client saw each pane's agent turn done; only done agents are kept.
+    pub(crate) done_since: HashMap<String, std::time::Instant>,
+    /// When this client first saw each pane's agent need you; only waiting agents are kept.
+    pub(crate) waiting_since: HashMap<String, std::time::Instant>,
     pub(super) agent_presentation: super::endpoint_agent_state::EndpointAgentPresentation,
     pub(crate) agent_view_projection: Option<ClientEndpointAgentViewProjection>,
     pending_agent_view_projection: Option<ClientEndpointAgentViewProjection>,
@@ -78,6 +84,15 @@ impl ClientShellState {
                 agent_recency: previous
                     .map(|endpoint| endpoint.agent_recency.clone())
                     .unwrap_or_default(),
+                working_since: previous
+                    .map(|endpoint| endpoint.working_since.clone())
+                    .unwrap_or_default(),
+                done_since: previous
+                    .map(|endpoint| endpoint.done_since.clone())
+                    .unwrap_or_default(),
+                waiting_since: previous
+                    .map(|endpoint| endpoint.waiting_since.clone())
+                    .unwrap_or_default(),
                 agent_presentation: previous
                     .map(|endpoint| endpoint.agent_presentation.clone())
                     .unwrap_or_default(),
@@ -129,6 +144,9 @@ impl ClientShellState {
             endpoint.snapshot_generation = None;
             endpoint.methods = None;
             endpoint.agent_recency.clear();
+            endpoint.working_since.clear();
+            endpoint.done_since.clear();
+            endpoint.waiting_since.clear();
             endpoint.agent_presentation = Default::default();
             endpoint.agent_view_projection = None;
             endpoint.pending_agent_view_projection = None;
@@ -238,6 +256,7 @@ impl ClientShellState {
             self.active_endpoint_id = endpoint_id.clone();
             self.pane_surface = None;
             self.pending_pane_surface = None;
+            self.task_board.forget_endpoint();
         }
         self.apply_active_snapshot(snapshot, generation);
         if switching_endpoint {
@@ -618,8 +637,30 @@ impl ClientShellState {
                 .iter()
                 .any(|agent| &agent.pane_id == pane_id)
         });
+        // Each keeps the moment an agent was first seen working, done or needing you; agents
+        // no longer in that state drop out. Only the tree shows these times.
+        let (working_since, done_since, waiting_since) = if self.config.sidebar_tree {
+            let now = std::time::Instant::now();
+            let endpoint = &self.endpoints[index];
+            (
+                first_seen_since(&endpoint.working_since, &snapshot, now, |agent| {
+                    agent.agent_status == crate::api::schema::AgentStatus::Working
+                }),
+                first_seen_since(&endpoint.done_since, &snapshot, now, |agent| {
+                    agent.agent_status == crate::api::schema::AgentStatus::Done
+                }),
+                first_seen_since(&endpoint.waiting_since, &snapshot, now, |agent| {
+                    super::tree_panel::needs_you(agent).is_some()
+                }),
+            )
+        } else {
+            Default::default()
+        };
         let endpoint = &mut self.endpoints[index];
         endpoint.agent_recency = recency;
+        endpoint.waiting_since = waiting_since;
+        endpoint.working_since = working_since;
+        endpoint.done_since = done_since;
         endpoint.snapshot_generation = generation;
         endpoint.snapshot = Some(snapshot);
         let pending_matches =
@@ -729,6 +770,68 @@ pub(super) fn endpoint_status_presentation(
     }
 }
 
+/// When each agent of `snapshot` matching `seen` was first seen so: its time in `previous`,
+/// else `now`.
+fn first_seen_since(
+    previous: &HashMap<String, std::time::Instant>,
+    snapshot: &ClientShellSnapshot,
+    now: std::time::Instant,
+    seen: impl Fn(&crate::protocol::ClientShellAgent) -> bool,
+) -> HashMap<String, std::time::Instant> {
+    snapshot
+        .agents
+        .iter()
+        .filter(|agent| seen(agent))
+        .map(|agent| {
+            let since = previous.get(&agent.pane_id).copied().unwrap_or(now);
+            (agent.pane_id.clone(), since)
+        })
+        .collect()
+}
+
+/// The active machine's working agents by first-seen start, and now, for one compose.
+pub(super) fn working_times_for_compose<'a>(
+    endpoints: &'a [ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+) -> Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)> {
+    times_for_compose(endpoints, active_endpoint_id, |endpoint| {
+        &endpoint.working_since
+    })
+}
+
+/// The active machine's done agents by when they were seen turning done, and now, for
+/// one compose.
+pub(super) fn done_times_for_compose<'a>(
+    endpoints: &'a [ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+) -> Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)> {
+    times_for_compose(endpoints, active_endpoint_id, |endpoint| {
+        &endpoint.done_since
+    })
+}
+
+/// The active machine's waiting agents by when they were first seen needing you, and now,
+/// for one compose.
+pub(super) fn waiting_times_for_compose<'a>(
+    endpoints: &'a [ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+) -> Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)> {
+    times_for_compose(endpoints, active_endpoint_id, |endpoint| {
+        &endpoint.waiting_since
+    })
+}
+
+fn times_for_compose<'a>(
+    endpoints: &'a [ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    times: impl Fn(&ClientShellEndpoint) -> &HashMap<String, std::time::Instant>,
+) -> Option<(&'a HashMap<String, std::time::Instant>, std::time::Instant)> {
+    endpoints
+        .iter()
+        .find(|endpoint| &endpoint.endpoint_id == active_endpoint_id)
+        .map(|endpoint| (times(endpoint), std::time::Instant::now()))
+}
+
 pub(super) fn local_endpoint() -> ClientShellEndpoint {
     ClientShellEndpoint {
         endpoint_id: ClientEndpointId::Local,
@@ -737,6 +840,9 @@ pub(super) fn local_endpoint() -> ClientShellEndpoint {
         snapshot: None,
         snapshot_generation: None,
         agent_recency: HashMap::new(),
+        working_since: HashMap::new(),
+        done_since: HashMap::new(),
+        waiting_since: HashMap::new(),
         agent_presentation: Default::default(),
         agent_view_projection: None,
         pending_agent_view_projection: None,

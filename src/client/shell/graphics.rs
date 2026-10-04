@@ -65,6 +65,8 @@ impl ClientShellState {
             crate::kitty_graphics::surface::Visibility::Hidden
         } else if self.hits.popup.is_some() {
             crate::kitty_graphics::surface::Visibility::Popup
+        } else if self.task_board.open {
+            crate::kitty_graphics::surface::Visibility::Hidden
         } else {
             crate::kitty_graphics::surface::Visibility::Main
         };

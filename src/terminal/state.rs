@@ -162,6 +162,12 @@ pub struct TerminalState {
     agent_process_acquisition_pending: bool,
     pub pending_agent_resume_plan: Option<crate::agent_resume::AgentResumePlan>,
     pub restore_error: Option<String>,
+    /// Git branch of `git_cwd`, filled by the background git refresh.
+    pub git_branch: Option<String>,
+    /// Working folder the cached `git_branch` was resolved from.
+    pub(crate) git_cwd: Option<PathBuf>,
+    /// Git status cache key (checkout root) for `git_cwd`.
+    pub(crate) git_status_key: Option<PathBuf>,
 }
 
 impl TerminalState {
@@ -202,6 +208,9 @@ impl TerminalState {
             agent_process_acquisition_pending: false,
             pending_agent_resume_plan: None,
             restore_error: None,
+            git_branch: None,
+            git_cwd: None,
+            git_status_key: None,
         }
     }
 
@@ -252,6 +261,59 @@ impl TerminalState {
         self.state = snapshot.authority.state;
         self.hook_authority = Some(snapshot.authority);
         self.agent_process_acquisition_pending = snapshot.acquisition_pending;
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn handoff_metadata_tokens(
+        &self,
+        now: Instant,
+    ) -> Option<crate::metadata_tokens::HandoffMetadataTokens> {
+        let sources = self
+            .metadata_token_sequence_sources
+            .iter()
+            .filter_map(|source| {
+                let seq = *self.metadata_report_sequences.get(source)?;
+                Some(crate::metadata_tokens::HandoffMetadataSource {
+                    source: source.clone(),
+                    seq,
+                    agent: self
+                        .metadata_report_agents
+                        .get(source)
+                        .map(|agent| crate::detect::agent_label(*agent).to_string()),
+                })
+            })
+            .collect();
+        crate::metadata_tokens::HandoffMetadataTokens::new(
+            self.metadata_tokens.handoff_tokens(now),
+            sources,
+        )
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn restore_handoff_metadata_tokens(
+        &mut self,
+        snapshot: crate::metadata_tokens::HandoffMetadataTokens,
+        now: Instant,
+    ) {
+        self.metadata_tokens =
+            crate::metadata_tokens::MetadataTokens::from_handoff(snapshot.tokens, now);
+        for carried in snapshot
+            .sources
+            .into_iter()
+            .take(crate::metadata_tokens::MAX_SEQUENCE_SOURCES)
+        {
+            if let Some(agent) = carried
+                .agent
+                .as_deref()
+                .and_then(crate::detect::parse_agent_label)
+            {
+                self.metadata_report_agents
+                    .insert(carried.source.clone(), agent);
+            }
+            self.metadata_report_sequences
+                .insert(carried.source.clone(), carried.seq);
+            self.metadata_token_sequence_sources.insert(carried.source);
+        }
     }
 
     pub(crate) fn finish_agent_process_acquisition(&mut self) -> bool {
@@ -2475,6 +2537,75 @@ mod tests {
 
     fn test_terminal() -> TerminalState {
         TerminalState::new(TerminalId::alloc(), "/tmp".into())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn handoff_metadata_tokens_keep_values_and_report_order() {
+        let now = Instant::now();
+        let mut before = test_terminal();
+        let agent = TerminalState::metadata_report_agent("claude-tasks", Some("claude"), None);
+        assert_eq!(
+            before.accept_metadata_report("claude-tasks", Some(5), true, agent),
+            Ok(true)
+        );
+        before.metadata_tokens.patch(
+            HashMap::from([
+                ("task".to_string(), Some("W37".to_string())),
+                ("lead".to_string(), Some("dotworks-lead".to_string())),
+            ]),
+            None,
+            now,
+        );
+        assert_eq!(
+            before.accept_metadata_report("presentation-only", Some(9), false, None),
+            Ok(true)
+        );
+
+        let carried = before
+            .handoff_metadata_tokens(now)
+            .expect("a pane with tokens carries them");
+        let carried = serde_json::from_value(serde_json::to_value(carried).unwrap()).unwrap();
+        let mut after = test_terminal();
+        after.restore_handoff_metadata_tokens(carried, now);
+
+        assert_eq!(
+            after.metadata_tokens.values(),
+            before.metadata_tokens.values()
+        );
+        assert_eq!(
+            after.metadata_report_agents.get("claude-tasks"),
+            agent.as_ref(),
+            "the owner comes along so its exit still resets the order"
+        );
+        assert!(
+            after.metadata_report_sequence_is_fresh("presentation-only", Some(1)),
+            "only token sources carry their order"
+        );
+        assert_eq!(
+            after.accept_metadata_report("claude-tasks", Some(5), true, agent),
+            Ok(false),
+            "a report sent before the swap must not replace the restored value"
+        );
+        assert_eq!(
+            after.accept_metadata_report("claude-tasks", Some(6), true, agent),
+            Ok(true),
+            "the next report from the same agent wins"
+        );
+        after.metadata_tokens.patch(
+            HashMap::from([("task".to_string(), Some("W38".to_string()))]),
+            None,
+            now,
+        );
+        assert_eq!(
+            after
+                .metadata_tokens
+                .values()
+                .get("task")
+                .map(String::as_str),
+            Some("W38")
+        );
+        assert!(test_terminal().handoff_metadata_tokens(now).is_none());
     }
 
     fn test_session_path(name: &str) -> String {

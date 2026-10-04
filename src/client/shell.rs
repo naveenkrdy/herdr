@@ -33,7 +33,11 @@ mod scroll;
 mod settings;
 mod state;
 mod surface_patch;
+mod task_board;
 mod text_editor;
+mod tree_panel;
+mod tree_rail;
+mod tree_sidebar;
 mod word_selection;
 mod worktrees;
 use text_editor::TextEditor;
@@ -229,7 +233,7 @@ fn status_color(
     use crate::api::schema::AgentStatus;
     match status {
         AgentStatus::Working => palette.yellow,
-        AgentStatus::Blocked => palette.red,
+        AgentStatus::Blocked => palette.yellow,
         AgentStatus::Done => palette.teal,
         AgentStatus::Idle => palette.green,
         AgentStatus::Unknown => palette.overlay0,

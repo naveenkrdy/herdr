@@ -50,6 +50,15 @@ pub struct WorkspaceGitStatus {
     pub space: Option<GitSpaceMetadata>,
 }
 
+/// Background git branch lookup for one pane's working folder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaneGitStatus {
+    pub pane_id: PaneId,
+    pub cwd: PathBuf,
+    pub status_cache_key: PathBuf,
+    pub branch: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceGitStatusSnapshot {
     pub auto_label: String,

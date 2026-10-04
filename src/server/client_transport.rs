@@ -544,6 +544,15 @@ pub(crate) enum ServerEvent {
         final_chunk: bool,
         data: Vec<u8>,
     },
+    /// One chunk of the response to a request that runs beside the ordered endpoint lane
+    /// (`tasks.list`) is ready.
+    ClientShellEndpointSideResponseChunkReady {
+        client_id: u64,
+        boot_id: String,
+        request_id: String,
+        final_chunk: bool,
+        data: Vec<u8>,
+    },
     /// A client detached gracefully.
     ClientDetach { client_id: u64 },
     /// A client connection was lost.

@@ -224,6 +224,7 @@ fn reply_to_probe(request: ApiRequestMessage) {
                 focused: true,
                 cwd: None,
                 foreground_cwd: None,
+                git_branch: None,
                 restore_error: None,
                 label: None,
                 agent: Some("pi".into()),

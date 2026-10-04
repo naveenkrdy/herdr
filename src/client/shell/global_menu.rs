@@ -28,6 +28,10 @@ pub(super) fn global_menu_items(
             ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
         ),
         (
+            "task board",
+            ClientGlobalMenuAction::Binding(crate::input::KeybindAction::OpenTaskBoard),
+        ),
+        (
             "keybinds",
             ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Help),
         ),

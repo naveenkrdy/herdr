@@ -33,6 +33,10 @@ fn draw_choice(
     );
 }
 
+/// The popup's rows around its choices: the border, the title, the section tabs, the rule
+/// and a blank row above, and the key hint, a blank row and the buttons below.
+const SETTINGS_CHROME_ROWS: u16 = 9;
+
 pub(super) fn render_settings_overlay(
     buffer: &mut Buffer,
     settings: &ClientSettingsOverlay,
@@ -42,10 +46,14 @@ pub(super) fn render_settings_overlay(
     let integration_height = 14u16
         .saturating_add(settings.integrations.len().max(1) as u16)
         .saturating_add(settings.integration_messages.len().min(6) as u16);
-    let height = if settings.section == ClientSettingsSection::Integrations {
-        integration_height.max(22)
-    } else {
-        22
+    let height = match settings.section {
+        ClientSettingsSection::Integrations => integration_height.max(22),
+        // Three groups: the status styles, every set for the main agent, then auto and every
+        // set for the sub-agents; tall enough for the last, and a short window scrolls.
+        ClientSettingsSection::Indicators => {
+            choice_row(IndicatorChoices::LINES - 1) + 1 + SETTINGS_CHROME_ROWS
+        }
+        _ => 22,
     };
     let popup = popup(buffer.area, 76, height)?;
     let inner = panel(buffer, popup, palette.accent, palette.panel_bg)?;
@@ -124,7 +132,7 @@ pub(super) fn render_settings_overlay(
         inner.x,
         inner.y + 4,
         inner.width,
-        inner.height.saturating_sub(7),
+        inner.height.saturating_sub(SETTINGS_CHROME_ROWS - 2),
     );
     let mut choice_hits = Vec::new();
     match settings.section {
@@ -159,16 +167,7 @@ pub(super) fn render_settings_overlay(
             }
         }
         ClientSettingsSection::Indicators => {
-            render_choice_section(
-                buffer,
-                content,
-                "agent status indicators",
-                "choose color dots or distinct symbols for each state",
-                &["color dots  ● ● ● ○ ·", "distinct symbols  × ◐ ✓ ○ ·"],
-                settings.selected,
-                palette,
-                &mut choice_hits,
-            );
+            render_indicators(buffer, content, settings, palette, &mut choice_hits);
         }
         ClientSettingsSection::Sound => {
             render_choice_section(
@@ -197,6 +196,24 @@ pub(super) fn render_settings_overlay(
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }
+        ClientSettingsSection::Sidebar => {
+            let on_off = |on: bool| if on { "on" } else { "off" };
+            let switches = settings.sidebar_switches;
+            let choices = [
+                format!("sidebar tree: {}", on_off(switches.tree)),
+                format!("needs-you panel: {}", on_off(switches.panel)),
+            ];
+            render_choice_section(
+                buffer,
+                content,
+                "sidebar tree",
+                "show spaces, tabs and panes as one tree; enter switches the selected line",
+                &choices.each_ref().map(String::as_str),
+                settings.selected,
+                palette,
+                &mut choice_hits,
+            );
+        }
     }
 
     let installable = settings
@@ -204,36 +221,31 @@ pub(super) fn render_settings_overlay(
         .iter()
         .any(super::super::settings::integration_needs_install);
     let show_primary = settings.section != ClientSettingsSection::Integrations || installable;
-    let labels = if show_primary { vec![10, 12] } else { vec![12] };
-    let buttons = row(inner, &labels, 2, inner.height.saturating_sub(1));
+    let primary_key = if settings.section == ClientSettingsSection::Integrations {
+        ("Enter", "install")
+    } else {
+        ("Enter", "apply")
+    };
+    let close_key = ("esc", "close");
+    let keys = if show_primary {
+        vec![primary_key, close_key]
+    } else {
+        vec![close_key]
+    };
+    let buttons = row(
+        inner,
+        &dialog_key_widths(&keys),
+        2,
+        inner.height.saturating_sub(1),
+    );
+    for (rect, key) in buttons.iter().zip(&keys) {
+        dialog_key(buffer, *rect, *key, palette);
+    }
     let (primary, close) = if show_primary {
-        let primary = buttons[0];
-        button(
-            buffer,
-            primary,
-            if settings.section == ClientSettingsSection::Integrations {
-                " ↵ install "
-            } else {
-                " ↵ apply "
-            },
-            Style::default()
-                .fg(contrast(palette))
-                .bg(palette.accent)
-                .add_modifier(Modifier::BOLD),
-        );
-        (primary, buttons[1])
+        (buttons[0], buttons[1])
     } else {
         (Rect::default(), buttons[0])
     };
-    button(
-        buffer,
-        close,
-        " esc close ",
-        Style::default()
-            .fg(palette.text)
-            .bg(palette.surface0)
-            .add_modifier(Modifier::BOLD),
-    );
     put_text(
         buffer,
         inner.x,
@@ -292,6 +304,154 @@ fn render_choice_section(
         let rect = Rect::new(area.x, y, area.width, 1);
         draw_choice(buffer, rect, choice, index == selected, false, palette);
         hits.push((rect, index));
+    }
+}
+
+/// A spinner set's name as settings lists it.
+fn spinner_label(style: crate::config::WorkingSpinnerStyle) -> &'static str {
+    use crate::config::WorkingSpinnerStyle;
+    match style {
+        WorkingSpinnerStyle::NerdSpinner => "nerd spinner",
+        WorkingSpinnerStyle::Braille => "braille",
+        WorkingSpinnerStyle::CircleSlices => "circle slices",
+        WorkingSpinnerStyle::MoonPhases => "moon phases",
+        WorkingSpinnerStyle::Arc => "arc",
+        WorkingSpinnerStyle::HalfCircles => "half circles",
+        WorkingSpinnerStyle::BrailleChase => "braille chase",
+        WorkingSpinnerStyle::DotOrbit => "dot orbit",
+        WorkingSpinnerStyle::Pulse => "pulse",
+        WorkingSpinnerStyle::Line => "line",
+        WorkingSpinnerStyle::Star => "star",
+        WorkingSpinnerStyle::Diamond => "diamond",
+    }
+}
+
+/// The indicators section: the status styles, then under their own headings the main
+/// agent's spinner sets and the sub-agents' auto and sets, each with its frames; `✓` marks
+/// the choice in use in each group. Choice indexes run on from one group into the next.
+fn render_indicators(
+    buffer: &mut Buffer,
+    area: Rect,
+    settings: &ClientSettingsOverlay,
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) {
+    use crate::config::{StatusIndicatorStyle, SubAgentSpinnerStyle};
+    let title = Style::default()
+        .fg(palette.text)
+        .bg(palette.panel_bg)
+        .add_modifier(Modifier::BOLD);
+    let note = Style::default().fg(palette.overlay1).bg(palette.panel_bg);
+    // A short window scrolls the section, as the theme list does, so the selected choice
+    // is always drawn.
+    let scroll = choice_row(settings.selected).saturating_sub(area.height.saturating_sub(1));
+    let row_y = |row: u16| {
+        row.checked_sub(scroll)
+            .filter(|row| *row < area.height)
+            .map(|row| area.y + row)
+    };
+    let mut put = |row: u16, text: &str, style: Style| {
+        if let Some(y) = row_y(row) {
+            put_text(buffer, area.x, y, area.width, text, style);
+        }
+    };
+    put(0, "agent status indicators", title);
+    put(
+        1,
+        "choose color dots or distinct symbols for each state",
+        note,
+    );
+    put(MAIN_HEADING_ROW, "main agent spinner", title);
+    put(
+        MAIN_HEADING_ROW + 1,
+        "a working agent's spinner in the tree; nerd sets need nerd icons",
+        note,
+    );
+    put(SUB_HEADING_ROW, "sub-agent spinner", title);
+    put(
+        SUB_HEADING_ROW + 1,
+        "a working sub-agent's spinner under its lead; auto goes with the main one",
+        note,
+    );
+    let choices = settings.indicators;
+    for index in 0..IndicatorChoices::LINES {
+        let Some(y) = row_y(choice_row(index)) else {
+            continue;
+        };
+        let Some(line) = IndicatorChoices::line(index) else {
+            continue;
+        };
+        let (label, current) = match line {
+            IndicatorLine::Status(style) => (
+                match style {
+                    StatusIndicatorStyle::Dots => "color dots  ● ● ● ○ ·",
+                    StatusIndicatorStyle::Symbols => "distinct symbols  × ◐ ✓ ○ ·",
+                }
+                .to_owned(),
+                style == choices.status,
+            ),
+            IndicatorLine::Spinner(style) => (
+                spinner_line(style, spinner_label(style)),
+                style == choices.spinner,
+            ),
+            IndicatorLine::SubSpinner(style) => {
+                // Auto shows the frames and name of the set it resolves to.
+                let set = style.resolve(choices.spinner);
+                let label = match style {
+                    SubAgentSpinnerStyle::Auto => spinner_line(
+                        set,
+                        &format!("auto (goes with main: {})", spinner_label(set)),
+                    ),
+                    _ => spinner_line(set, spinner_label(set)),
+                };
+                (label, style == choices.sub_spinner)
+            }
+        };
+        let rect = Rect::new(area.x, y, area.width, 1);
+        draw_choice(
+            buffer,
+            rect,
+            &label,
+            index == settings.selected,
+            current,
+            palette,
+        );
+        hits.push((rect, index));
+    }
+}
+
+/// A spinner choice's line: the set's first frames, at most `SPINNER_LINE_FRAMES`, then
+/// `label` in a column of its own.
+fn spinner_line(style: crate::config::WorkingSpinnerStyle, label: &str) -> String {
+    let frames = super::super::tree_sidebar::spinner_frames(style);
+    let frames = frames[..frames.len().min(SPINNER_LINE_FRAMES)].concat();
+    let pad = 13usize.saturating_sub(usize::from(display_width(&frames)));
+    format!("{frames}{}{label}", " ".repeat(pad))
+}
+
+/// Frames a spinner choice shows at most, so every name starts in one column.
+const SPINNER_LINE_FRAMES: usize = 12;
+
+/// The indicators section's row of the main agent's spinner heading.
+const MAIN_HEADING_ROW: u16 = 6;
+
+/// The indicators section's row of the sub-agents' spinner heading: a blank row after the
+/// main agent's sets.
+const SUB_HEADING_ROW: u16 = MAIN_HEADING_ROW + 3 + IndicatorChoices::SPINNER_LINES as u16 + 1;
+
+/// The indicators section's row of choice `index`: the status styles from the fourth row,
+/// each group of spinner choices from the third row under its heading.
+fn choice_row(index: usize) -> u16 {
+    // Fewer than a hundred choices, so the rows fit in a u16.
+    let index = index as u16;
+    let status = IndicatorChoices::STATUS_LINES as u16;
+    let main = IndicatorChoices::SPINNER_LINES as u16;
+    if index < status {
+        3 + index
+    } else if index < status + main {
+        MAIN_HEADING_ROW + 3 + (index - status)
+    } else {
+        SUB_HEADING_ROW + 3 + (index - status - main)
     }
 }
 

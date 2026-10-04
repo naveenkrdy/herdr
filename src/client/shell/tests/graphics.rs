@@ -303,6 +303,7 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
             target: ClientContextMenuTarget::Tab {
                 tab_id: "tab_1".into(),
                 workspace_id: "ws_1".into(),
+                splits: false,
             },
             x: 35,
             y: 8,
@@ -318,6 +319,8 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
             integration_messages: Vec::new(),
             loading_integrations: false,
             installing_integrations: false,
+            sidebar_switches: Default::default(),
+            indicators: Default::default(),
         }),
     ];
     for overlay in overlays {
@@ -459,6 +462,38 @@ fn selection_copy_cursor_and_search_hide_only_the_highlighted_images() {
             point
         ));
     }
+    assert!(!String::from_utf8_lossy(&frame.graphics.clone().into_inline_bytes()).contains("a=t"));
+}
+
+#[test]
+fn task_board_hides_the_pane_images_while_it_is_open() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    let layout = state.layout(106, 30);
+    let point = (layout.pane_surface.x, layout.pane_surface.y);
+    let mut surface = surface();
+    add_main_image(&mut surface, layout, point, 1);
+    state.set_pane_surface(surface);
+    let frame = state.compose(106, 30).unwrap();
+    assert!(is_placed(
+        &frame.graphics.clone().into_inline_bytes(),
+        point
+    ));
+    state.task_board.open = true;
+    let frame = state.compose(106, 30).unwrap();
+    assert!(!is_placed(
+        &frame.graphics.clone().into_inline_bytes(),
+        point
+    ));
+    assert!(
+        String::from_utf8_lossy(&frame.graphics.clone().into_inline_bytes()).contains("a=d,d=i")
+    );
+    state.task_board.open = false;
+    let frame = state.compose(106, 30).unwrap();
+    assert!(is_placed(
+        &frame.graphics.clone().into_inline_bytes(),
+        point
+    ));
     assert!(!String::from_utf8_lossy(&frame.graphics.clone().into_inline_bytes()).contains("a=t"));
 }
 

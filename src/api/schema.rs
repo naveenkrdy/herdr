@@ -11,6 +11,7 @@ pub mod response;
 pub mod server;
 pub mod session;
 pub mod tabs;
+pub mod tasks;
 pub mod workspaces;
 pub mod worktrees;
 
@@ -25,6 +26,7 @@ pub use response::*;
 pub use server::*;
 pub use session::*;
 pub use tabs::*;
+pub use tasks::*;
 pub use workspaces::*;
 pub use worktrees::*;
 
@@ -249,6 +251,12 @@ pub enum Method {
     PluginPaneFocus(PluginPaneFocusParams),
     #[serde(rename = "plugin.pane.close")]
     PluginPaneClose(PluginPaneCloseParams),
+    #[serde(rename = "tasks.list")]
+    TasksList(EmptyParams),
+    #[serde(rename = "tasks.act")]
+    TasksAct(TasksActParams),
+    #[serde(rename = "tasks.open")]
+    TasksOpen(TasksOpenParams),
 }
 
 #[cfg(test)]

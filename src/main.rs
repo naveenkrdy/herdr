@@ -190,6 +190,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # resize_pane_up = ""     # optional, e.g. "ctrl+shift+alt+up"
 # resize_pane_right = ""  # optional, e.g. "ctrl+shift+alt+right"
 # toggle_sidebar = "prefix+b"
+# open_task_board = "prefix+a"
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.
@@ -244,6 +245,15 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 
 # Collapsed sidebar presentation: "compact" keeps the narrow status rail, "hidden" uses zero width.
 # sidebar_collapsed_mode = "compact"
+
+# Show the expanded sidebar as one tree of spaces, tabs and panes.
+# sidebar_tree = false
+
+# In the sidebar tree, show the bottom panel of what needs you and what is working.
+# sidebar_tree_panel = true
+
+# Glyphs in the sidebar tree: "plain" Unicode, or "nerd" for Nerd Font icons.
+# sidebar_tree_icons = "plain"
 
 # Terminal width at or below which Herdr uses the mobile single-column layout.
 # Increase this for foldables, tablets, or wide phone terminals.
@@ -334,6 +344,15 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # Agent status indicators: "dots" preserves the compact color marks; "symbols" uses
 # distinct static glyphs for blocked, working, done, idle, and unknown states.
 # status_indicators = "dots"
+
+# The sidebar tree's spinner for a working agent: "braille", "arc", "half_circles",
+# "braille_chase", "dot_orbit", "pulse", "line", "star", "diamond", or with Nerd Font
+# icons "nerd_spinner", "circle_slices", "moon_phases".
+# working_spinner = "braille"
+
+# The spinner for a working sub-agent under its lead: "auto" (a lighter set that goes
+# with working_spinner) or any working_spinner set.
+# sub_agent_spinner = "auto"
 
 # Accent color for highlights, borders, and navigation UI.
 # Accepts: hex (#89b4fa), named colors (cyan, blue, magenta), or rgb(r,g,b)

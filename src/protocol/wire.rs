@@ -1087,6 +1087,13 @@ pub struct ClientShellPane {
     pub foreground_cwd: Option<String>,
     pub focused: bool,
     pub right_click_passthrough: bool,
+    /// Git branch checked out in `cwd`. Optional so older endpoints still decode.
+    #[serde(default)]
+    pub git_branch: Option<String>,
+    /// Plugin that opened this pane through the plugin pane API. Optional so older
+    /// endpoints still decode.
+    #[serde(default)]
+    pub plugin_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2814,6 +2821,50 @@ mod tests {
     }
 
     #[test]
+    fn client_shell_pane_git_branch_is_optional_json() {
+        let legacy = serde_json::json!({
+            "pane_id": "w1:p1",
+            "workspace_id": "w1",
+            "tab_id": "w1:t1",
+            "label": null,
+            "cwd": "/tmp",
+            "foreground_cwd": null,
+            "focused": true,
+            "right_click_passthrough": false
+        });
+        let mut pane: ClientShellPane = serde_json::from_value(legacy).unwrap();
+        assert_eq!(pane.git_branch, None);
+
+        pane.git_branch = Some("feat/tab".into());
+        let encoded = serde_json::to_value(&pane).unwrap();
+        assert_eq!(encoded["git_branch"], "feat/tab");
+        let decoded: ClientShellPane = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, pane);
+    }
+
+    #[test]
+    fn client_shell_pane_plugin_id_is_optional_json() {
+        let legacy = serde_json::json!({
+            "pane_id": "w1:p1",
+            "workspace_id": "w1",
+            "tab_id": "w1:t1",
+            "label": null,
+            "cwd": "/tmp",
+            "foreground_cwd": null,
+            "focused": true,
+            "right_click_passthrough": false
+        });
+        let mut pane: ClientShellPane = serde_json::from_value(legacy).unwrap();
+        assert_eq!(pane.plugin_id, None);
+
+        pane.plugin_id = Some("herdr-sidebar".into());
+        let encoded = serde_json::to_value(&pane).unwrap();
+        assert_eq!(encoded["plugin_id"], "herdr-sidebar");
+        let decoded: ClientShellPane = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, pane);
+    }
+
+    #[test]
     fn client_shell_snapshot_roundtrip() {
         let msg = ServerMessage::ClientShellSnapshot(Box::new(ClientShellSnapshot {
             boot_id: "boot-1".into(),
@@ -2880,6 +2931,8 @@ mod tests {
                 foreground_cwd: Some("/repo".into()),
                 focused: true,
                 right_click_passthrough: false,
+                git_branch: None,
+                plugin_id: None,
             }],
             agents: Vec::new(),
             commands: vec![ClientShellCommand {

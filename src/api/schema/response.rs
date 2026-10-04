@@ -277,6 +277,15 @@ pub enum ResponseResult {
         active: bool,
         projection_revision: u64,
     },
+    /// The task list document printed by the configured `tasks.command`, checked to be version 1.
+    TasksList {
+        list: serde_json::Value,
+    },
+    /// Whether `tasks.command` did the action; when it refused, its reason.
+    TasksAct {
+        ok: bool,
+        reason: Option<String>,
+    },
     Ok {},
 }
 

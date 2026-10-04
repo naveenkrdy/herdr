@@ -11,6 +11,7 @@ pub(crate) use agents::{AGENT_START_SETTLE_DELAY, MAX_AGENT_START_TIMEOUT};
 mod api;
 #[cfg(test)]
 pub(crate) use api::test_support::exiting_test_command;
+pub(crate) use api::{TasksActFinished, TasksListFinished};
 mod api_helpers;
 pub(crate) use api_helpers::limit_snapshot_lines;
 mod creation;
@@ -126,6 +127,9 @@ pub struct App {
     pub(crate) pending_worktree_remove_runtime_exits: HashMap<crate::layout::PaneId, usize>,
     pub(crate) pending_worktree_remove_runtime_restores: HashMap<crate::layout::PaneId, u64>,
     pub(crate) next_api_worktree_operation_id: u64,
+    /// Program answering `tasks.list`; `None` turns the tasks list off.
+    pub(crate) tasks_command: Option<std::path::PathBuf>,
+    pub(crate) tasks_list: api::TasksListState,
     pub(crate) next_auto_update_check: Option<Instant>,
     pub(crate) next_agent_manifest_update_check: Option<Instant>,
     pub(crate) update_version_check_enabled: bool,
@@ -185,6 +189,10 @@ fn load_plugin_registry(
         .into_iter()
         .map(|plugin| (plugin.plugin_id.clone(), plugin))
         .collect()
+}
+
+fn tasks_command_from_config(config: &crate::config::TasksConfig) -> Option<std::path::PathBuf> {
+    config.command().map(crate::worktree::expand_tilde_path)
 }
 
 fn agent_panel_sort_from_config(
@@ -587,6 +595,8 @@ impl App {
             pending_worktree_remove_runtime_exits: HashMap::new(),
             pending_worktree_remove_runtime_restores: HashMap::new(),
             next_api_worktree_operation_id: 1,
+            tasks_command: tasks_command_from_config(&config.tasks),
+            tasks_list: api::TasksListState::default(),
             next_auto_update_check: version_check_enabled
                 .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
             next_agent_manifest_update_check: manifest_check_enabled
@@ -641,6 +651,10 @@ impl App {
             u32,
             crate::handoff_runtime::ImportedHandoffRuntime,
         >,
+        workspace_metadata_tokens: std::collections::HashMap<
+            String,
+            crate::metadata_tokens::HandoffMetadataTokens,
+        >,
     ) -> io::Result<Self> {
         let mut app = Self::new(
             config,
@@ -655,6 +669,7 @@ impl App {
             &config.terminal.default_shell,
             config.terminal.shell_mode,
             imports,
+            workspace_metadata_tokens,
             app.event_tx.clone(),
             app.render_notify.clone(),
             app.render_dirty.clone(),
@@ -945,6 +960,11 @@ impl App {
                 crate::worktree::expand_tilde_absolute_path(&config.worktrees.directory);
         }
 
+        if !invalid_section("tasks") {
+            diagnostics.extend(config.tasks.diagnostic());
+            self.tasks_command = tasks_command_from_config(&config.tasks);
+        }
+
         if !invalid_section("theme") {
             self.state.theme_runtime = theme_runtime_config(config, !invalid_section("ui"));
             self.refresh_effective_app_theme();
@@ -1059,6 +1079,7 @@ mod tests {
 
         let changed = app.handle_internal_event_with_render_impact(AppEvent::GitStatusRefreshed {
             results: Vec::new(),
+            pane_results: Vec::new(),
             cache_updates: Vec::new(),
         });
 
@@ -1106,6 +1127,7 @@ mod tests {
 
         app.handle_internal_event(AppEvent::GitStatusRefreshed {
             results: Vec::new(),
+            pane_results: Vec::new(),
             cache_updates: Vec::new(),
         });
 
@@ -1132,6 +1154,7 @@ mod tests {
                 ahead_behind: Some((1, 0)),
                 space: None,
             }],
+            pane_results: Vec::new(),
             cache_updates: Vec::new(),
         });
 
@@ -1279,6 +1302,7 @@ mod tests {
         app.event_tx
             .try_send(AppEvent::GitStatusRefreshed {
                 results: Vec::new(),
+                pane_results: Vec::new(),
                 cache_updates: Vec::new(),
             })
             .unwrap();
@@ -1789,6 +1813,46 @@ mod tests {
         let report = app.apply_live_config(&config, &[], &["session".into()], false);
         assert!(report.diagnostics.is_empty());
         assert_eq!(app.startup_per_agent_delay, Duration::from_millis(100));
+    }
+
+    #[test]
+    fn reload_config_sets_and_clears_the_tasks_command() {
+        let mut app = test_app();
+        assert_eq!(app.tasks_command, None);
+
+        let mut config = Config::default();
+        config.tasks.command = Some("claude-tasks".into());
+        let report = app.apply_live_config(&config, &[], &[], false);
+        assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
+        assert_eq!(
+            app.tasks_command.as_deref(),
+            Some(std::path::Path::new("claude-tasks"))
+        );
+
+        config.tasks.command = Some("~/bin/claude-tasks".into());
+        app.apply_live_config(&config, &[], &[], false);
+        assert_eq!(
+            app.tasks_command,
+            Some(crate::worktree::expand_tilde_path("~/bin/claude-tasks"))
+        );
+
+        let report = app.apply_live_config(&Config::default(), &[], &["tasks".into()], false);
+        assert!(report.diagnostics.is_empty());
+        assert!(
+            app.tasks_command.is_some(),
+            "an invalid section keeps the last command"
+        );
+
+        config.tasks.command = Some("  ".into());
+        let report = app.apply_live_config(&config, &[], &[], false);
+        assert_eq!(app.tasks_command, None);
+        assert_eq!(
+            report.diagnostics,
+            vec!["tasks.command is empty; the tasks list is off"]
+        );
+
+        app.apply_live_config(&Config::default(), &[], &[], false);
+        assert_eq!(app.tasks_command, None);
     }
 
     #[test]

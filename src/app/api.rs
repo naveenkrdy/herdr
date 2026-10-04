@@ -10,6 +10,8 @@ pub(crate) mod plugins;
 pub(super) mod responses;
 mod session;
 mod tabs;
+mod tasks;
+pub(crate) use tasks::{TasksActFinished, TasksListFinished, TasksListState};
 mod workspaces;
 mod worktrees;
 
@@ -31,13 +33,22 @@ impl App {
         match ev {
             AppEvent::GitStatusRefreshed {
                 results,
+                pane_results,
                 cache_updates,
-            } => self.handle_git_status_refreshed(results, cache_updates),
+            } => self.handle_git_status_refreshed(results, pane_results, cache_updates),
             AppEvent::TabBarCommandFinished {
                 generation,
                 segment_index,
                 result,
             } => self.handle_tab_bar_command_finished(generation, segment_index, result),
+            AppEvent::TasksListFinished(result) => {
+                self.handle_api_tasks_list_finished(*result);
+                false
+            }
+            AppEvent::TasksActFinished(result) => {
+                self.handle_api_tasks_act_finished(*result);
+                false
+            }
             AppEvent::WorktreeReadFinished(result) => {
                 let changes_workspace = matches!(
                     &result.request.method,
@@ -60,6 +71,7 @@ impl App {
     fn handle_git_status_refreshed(
         &mut self,
         results: Vec<crate::workspace::WorkspaceGitStatus>,
+        pane_results: Vec<crate::workspace::PaneGitStatus>,
         cache_updates: Vec<(std::path::PathBuf, crate::workspace::GitStatusCacheEntry)>,
     ) -> bool {
         self.git_refresh_in_flight = false;
@@ -72,9 +84,12 @@ impl App {
         } else {
             self.last_git_remote_status_refresh = Instant::now();
         }
-        let changed = self
+        let mut changed = self
             .state
             .apply_workspace_git_statuses(&self.terminal_runtimes, results);
+        changed |= self
+            .state
+            .apply_pane_git_statuses(&self.terminal_runtimes, pane_results);
         if changed {
             self.render_dirty.request_generic();
             self.render_notify.notify_one();
@@ -116,10 +131,11 @@ impl App {
 
         if let AppEvent::GitStatusRefreshed {
             results,
+            pane_results,
             cache_updates,
         } = ev
         {
-            self.handle_git_status_refreshed(results, cache_updates);
+            self.handle_git_status_refreshed(results, pane_results, cache_updates);
             return Vec::new();
         }
 
@@ -166,6 +182,16 @@ impl App {
 
         if let AppEvent::WorktreeReadFinished(result) = ev {
             self.handle_api_worktree_read_finished(*result);
+            return Vec::new();
+        }
+
+        if let AppEvent::TasksListFinished(result) = ev {
+            self.handle_api_tasks_list_finished(*result);
+            return Vec::new();
+        }
+
+        if let AppEvent::TasksActFinished(result) = ev {
+            self.handle_api_tasks_act_finished(*result);
             return Vec::new();
         }
 
@@ -1054,6 +1080,21 @@ impl App {
             Method::WorkspaceClose(target) => {
                 return self.handle_workspace_close(request.id, target);
             }
+            Method::TasksList(_) => {
+                return responses::encode_error(
+                    request.id,
+                    "invalid_request",
+                    "tasks.list is handled asynchronously by the app runtime",
+                );
+            }
+            Method::TasksAct(_) => {
+                return responses::encode_error(
+                    request.id,
+                    "invalid_request",
+                    "tasks.act is handled asynchronously by the app runtime",
+                );
+            }
+            Method::TasksOpen(params) => return self.handle_tasks_open(request.id, params),
             Method::WorktreeList(_) | Method::WorktreeOpen(_) => {
                 return responses::encode_error(
                     request.id,

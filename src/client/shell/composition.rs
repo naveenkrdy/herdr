@@ -54,6 +54,8 @@ impl ClientShellState {
                 && self.endpoint_status(&self.active_endpoint_id)
                     == Some(ClientEndpointStatus::Online)
         });
+        // Only the tree draws first-seen times.
+        let tree = self.config.sidebar_tree;
         let mut render_state = render::ShellRenderState {
             machine_diagnostics: &self.machine_diagnostics,
             endpoints: &self.endpoints,
@@ -77,9 +79,39 @@ impl ClientShellState {
             reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
+            spinner_ms: self.sidebar_spinner_ms,
+            hovered_workspace_id: self.hovered_tree_space.as_deref(),
+            hovered_row: self.hovered_tree_row,
+            working_times: tree
+                .then(|| {
+                    super::endpoints::working_times_for_compose(
+                        &self.endpoints,
+                        &self.active_endpoint_id,
+                    )
+                })
+                .flatten(),
+            done_times: tree
+                .then(|| {
+                    super::endpoints::done_times_for_compose(
+                        &self.endpoints,
+                        &self.active_endpoint_id,
+                    )
+                })
+                .flatten(),
+            waiting_times: tree
+                .then(|| {
+                    super::endpoints::waiting_times_for_compose(
+                        &self.endpoints,
+                        &self.active_endpoint_id,
+                    )
+                })
+                .flatten(),
+            home_dir: self.home_dir.as_deref(),
+            task_board_icon: self.task_board.icon(),
+            tree_filter: self.tree_filter,
         };
         if let Some(snapshot) = local_snapshot {
-            render::render_sidebar(
+            render::render_local_sidebar(
                 &mut buffer,
                 sidebar,
                 snapshot,
@@ -205,6 +237,8 @@ impl ClientShellState {
             _ => (None, None),
         };
         let mut buffer = Buffer::empty(Rect::new(0, 0, cols, rows));
+        // Only the tree draws first-seen times.
+        let tree = self.config.sidebar_tree;
         self.hits = render::render_shell(
             &mut buffer,
             layout,
@@ -233,6 +267,36 @@ impl ClientShellState {
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
+                spinner_ms: self.sidebar_spinner_ms,
+                hovered_workspace_id: self.hovered_tree_space.as_deref(),
+                hovered_row: self.hovered_tree_row,
+                working_times: tree
+                    .then(|| {
+                        super::endpoints::working_times_for_compose(
+                            &self.endpoints,
+                            &self.active_endpoint_id,
+                        )
+                    })
+                    .flatten(),
+                done_times: tree
+                    .then(|| {
+                        super::endpoints::done_times_for_compose(
+                            &self.endpoints,
+                            &self.active_endpoint_id,
+                        )
+                    })
+                    .flatten(),
+                waiting_times: tree
+                    .then(|| {
+                        super::endpoints::waiting_times_for_compose(
+                            &self.endpoints,
+                            &self.active_endpoint_id,
+                        )
+                    })
+                    .flatten(),
+                home_dir: self.home_dir.as_deref(),
+                task_board_icon: self.task_board.icon(),
+                tree_filter: self.tree_filter,
             },
         );
         self.hits.panes = surface
@@ -338,12 +402,50 @@ impl ClientShellState {
             self.hits.tab_scroll_left = Rect::default();
             self.hits.tab_scroll_right = Rect::default();
         }
+        // The open board takes the panes' place; they keep running under it.
+        let board_open = self.task_board.open;
+        if board_open {
+            self.hits.panes.clear();
+            self.hits.pane_splits.clear();
+            self.task_board.can_act = self.can_act_on_tasks();
+            self.task_board.can_open = self.can_open_task_files();
+            let spinner_ms = self.sidebar_spinner_ms;
+            let agents = super::task_board::board_agents(
+                self.snapshot.as_deref(),
+                &self.config,
+                self.home_dir.as_deref(),
+                spinner_ms,
+            );
+            // A task or a card an agent is on shows the sub-agent spinner, as a worker's row.
+            let worker_mark = (
+                super::tree_sidebar::spinner_glyph(spinner_ms, &self.config, true),
+                super::status_color(
+                    crate::api::schema::AgentStatus::Working,
+                    &self.config.palette,
+                ),
+            );
+            let board = super::task_board::render_task_board(
+                &mut buffer,
+                layout.pane_surface,
+                &self.task_board,
+                &self.config.palette,
+                self.home_dir.as_deref(),
+                (&agents, worker_mark),
+            );
+            self.task_board.scroll = board.scroll;
+            self.task_board.work_scroll = board.work_scroll;
+            self.task_board.reveal_selected = false;
+            self.task_board.drop_unshown_heading_focus(&board);
+            self.hits.task_board = board;
+        }
         let mut frame = FrameData::from_ratatui_buffer_with_hyperlinks(&buffer, None, &[]);
         let mode_bar_cells = mode_bar.map(|bar| {
             let start = usize::from(bar.y) * usize::from(frame.width) + usize::from(bar.x);
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
-        blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        if !board_open {
+            blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        }
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self

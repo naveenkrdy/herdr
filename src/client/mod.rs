@@ -117,7 +117,8 @@ pub(crate) use handshake::probe_endpoint_negotiation;
 use handshake::{client_shell_keybinding_source, do_handshake, is_remote_client_process};
 #[cfg(test)]
 use handshake::{
-    direct_graphics_profile_values, handshake_read_timeout, REMOTE_HANDSHAKE_READ_TIMEOUT,
+    direct_graphics_profile_values, handshake_read_timeout, terminal_is_ghostty,
+    REMOTE_HANDSHAKE_READ_TIMEOUT,
 };
 use notifications::{handle_notify, handle_shell_notification_effects};
 #[cfg(test)]
@@ -1424,12 +1425,19 @@ async fn run_client_loop(
                         boot_id,
                         request_id,
                         ..
-                    } => endpoint_commands.accepts_response(
-                        &endpoint_id,
-                        generation,
-                        boot_id,
-                        request_id,
-                    ),
+                    } => {
+                        endpoint_commands.accepts_response(
+                            &endpoint_id,
+                            generation,
+                            boot_id,
+                            request_id,
+                        ) || endpoint_commands.accepts_side_response(
+                            &endpoint_id,
+                            generation,
+                            boot_id,
+                            request_id,
+                        )
+                    }
                     _ => false,
                 };
                 if !endpoint::accepts_endpoint_message(
@@ -1534,7 +1542,11 @@ async fn run_client_loop(
                                 }
                             }
                             Some(shell::ClientPaneSurfacePatchOutcome::Applied(None)) => true,
-                            Some(shell::ClientPaneSurfacePatchOutcome::Rejected) | None => false,
+                            Some(
+                                shell::ClientPaneSurfacePatchOutcome::Rejected
+                                | shell::ClientPaneSurfacePatchOutcome::Retained,
+                            )
+                            | None => false,
                         };
                         apply_client_shell_input_source_changes(
                             &mut state,
@@ -1853,6 +1865,48 @@ async fn run_client_loop(
                             continue;
                         }
                         if request_id.starts_with("client-shell-surface:") {
+                            continue;
+                        }
+                        // A side request's reply (`tasks.list`, `tasks.act`) is taken by its id before
+                        // the lane, which keeps waiting for its own command.
+                        if endpoint_commands.accepts_side_response(
+                            &endpoint_id,
+                            generation,
+                            &boot_id,
+                            &request_id,
+                        ) {
+                            let completed = endpoint_commands.receive_side_chunk(
+                                &endpoint_id,
+                                generation,
+                                &boot_id,
+                                &request_id,
+                                final_chunk,
+                                data,
+                            );
+                            let frame = completed.and_then(|completed| {
+                                let shell = state.shell.as_mut()?;
+                                let (repaint, _) =
+                                    if shell.endpoint_is_active(&completed.endpoint_id) {
+                                        shell.handle_endpoint_result(
+                                            &completed.boot_id,
+                                            &completed.request_id,
+                                            completed.result,
+                                        )
+                                    } else {
+                                        (
+                                            shell.cancel_endpoint_request(&completed.request_id),
+                                            Vec::new(),
+                                        )
+                                    };
+                                repaint
+                                    .then(|| {
+                                        shell.compose(state.reported_size.0, state.reported_size.1)
+                                    })
+                                    .flatten()
+                            });
+                            if let Some(frame) = frame {
+                                state.present_frame(frame);
+                            }
                             continue;
                         }
                         let completed = endpoint_commands
@@ -2254,6 +2308,7 @@ async fn run_client_loop(
                     );
                 }
                 if state.shell.is_some() {
+                    let lost_side = endpoint_commands.lost_side(&write_stream);
                     let expired_endpoints = endpoint_commands
                         .expire(now)
                         .into_iter()
@@ -2264,6 +2319,9 @@ async fn run_client_loop(
                     let (effects, outcome, frame) = {
                         let shell = state.shell.as_mut().expect("checked shell mode");
                         let mut outcome = shell.tick_selection_autoscroll(now);
+                        for request_id in lost_side {
+                            outcome.repaint |= shell.cancel_endpoint_request(&request_id);
+                        }
                         for expired in expired_endpoints {
                             if !shell.endpoint_is_active(&expired.endpoint_id) {
                                 continue;
@@ -2276,9 +2334,11 @@ async fn run_client_loop(
                             outcome.repaint |= repaint;
                             outcome.actions.extend(actions);
                         }
+                        shell.tick_task_board(now, &mut outcome);
                         let (effects, notification_repaint) = shell.tick_notifications(now);
                         outcome.repaint |= notification_repaint
                             | shell.tick_copy_feedback(now)
+                            | shell.tick_sidebar_spinner(now)
                             | shell.tick_workspace_highlight(now)
                             | shell.tick_endpoint_error(now);
                         let frame = outcome

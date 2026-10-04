@@ -113,7 +113,7 @@ pub(crate) fn render_global_menu(
         .min(screen.right().saturating_sub(width));
     let y = launcher.y.saturating_sub(height).max(screen.y);
     let rect = Rect::new(x, y, width, height);
-    let inner = panel(buffer, rect, palette.accent, palette.panel_bg)?;
+    let inner = panel(buffer, rect, palette.overlay0, palette.panel_bg)?;
     let mut rows = Vec::new();
     for (index, (label, action)) in items.iter().enumerate() {
         let row_y = inner.y.saturating_add(index as u16);
@@ -122,25 +122,11 @@ pub(crate) fn render_global_menu(
         }
         let row = Rect::new(inner.x, row_y, inner.width, 1);
         let highlighted = index == menu.highlighted;
-        let style = if highlighted {
-            Style::default()
-                .fg(panel_contrast_fg(palette))
-                .bg(palette.accent)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.text).bg(palette.panel_bg)
-        };
+        let style = menu_row_style(palette, highlighted);
         buffer.set_style(row, style);
         let has_badge = super::super::global_menu::global_menu_item_has_badge(snapshot, *action);
         if has_badge {
-            let badge_style = if highlighted {
-                style
-            } else {
-                Style::default()
-                    .fg(palette.accent)
-                    .bg(palette.panel_bg)
-                    .add_modifier(Modifier::BOLD)
-            };
+            let badge_style = style.fg(palette.accent);
             put_text(buffer, row.x, row.y, row.width.min(2), " ●", badge_style);
             put_text(
                 buffer,
@@ -190,7 +176,7 @@ pub(crate) fn render_context_menu(
             .saturating_add(screen.height.saturating_sub(height)),
     );
     let rect = Rect::new(x, y, width, height);
-    let inner = panel(buffer, rect, palette.accent, palette.panel_bg)?;
+    let inner = panel(buffer, rect, palette.overlay0, palette.panel_bg)?;
     let mut rows = Vec::new();
     for (index, item) in items.iter().enumerate() {
         let row_y = inner.y.saturating_add(index as u16);
@@ -199,14 +185,7 @@ pub(crate) fn render_context_menu(
         }
         let row = Rect::new(inner.x, row_y, inner.width, 1);
         let highlighted = index == menu.highlighted;
-        let style = if highlighted {
-            Style::default()
-                .fg(panel_contrast_fg(palette))
-                .bg(palette.accent)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(palette.text).bg(palette.panel_bg)
-        };
+        let style = menu_row_style(palette, highlighted);
         buffer.set_style(row, style);
         put_text(buffer, row.x, row.y, row.width, item.label, style);
         rows.push((row, index));
@@ -216,6 +195,19 @@ pub(crate) fn render_context_menu(
         menu_rows: rows,
         ..OverlayRender::default()
     })
+}
+
+/// A menu row: the highlighted one on the selection fill, the rest on the box's fill, both
+/// in text and plain, so a menu reads like the board's own menus.
+fn menu_row_style(palette: &Palette, highlighted: bool) -> Style {
+    Style::default()
+        .fg(palette.text)
+        .bg(if highlighted {
+            palette.selection_bg
+        } else {
+            palette.panel_bg
+        })
+        .remove_modifier(Modifier::BOLD)
 }
 
 fn panel(
@@ -283,6 +275,67 @@ fn button(b: &mut Buffer, r: Rect, t: &str, s: Style) {
     let w = display_width(t).min(r.width);
     put_text(b, r.x + (r.width - w) / 2, r.y, w, t, s)
 }
+/// A dialog key as the board's footer draws it: the key in its block, then its action in
+/// the hint grey, so a dialog's keys read as one row.
+/// The onboarding's key; its hit area is [`crate::ui::onboarding_welcome_continue_rect`].
+const CONTINUE_KEY: (&str, &str) = ("Enter", "continue");
+
+/// Every dialog's way out.
+const CANCEL_KEY: (&str, &str) = ("esc", "cancel");
+
+fn dialog_key(b: &mut Buffer, r: Rect, key: (&str, &str), p: &Palette) {
+    let key_style = crate::client::shell::task_board::style::key(p);
+    put_dialog_key(b, r, key, key_style, p);
+}
+
+/// A key whose action destroys something: drawn as [`dialog_key`], its block kept red.
+fn dialog_danger_key(b: &mut Buffer, r: Rect, key: (&str, &str), p: &Palette) {
+    let key_style = crate::client::shell::task_board::style::key(p)
+        .fg(contrast(p))
+        .bg(p.red);
+    put_dialog_key(b, r, key, key_style, p);
+}
+
+fn put_dialog_key(
+    b: &mut Buffer,
+    r: Rect,
+    (key, action): (&str, &str),
+    key_style: Style,
+    p: &Palette,
+) {
+    let block = format!(" {key} ");
+    let block_width = display_width(&block).min(r.width);
+    put_text(
+        b,
+        r.x,
+        r.y,
+        block_width,
+        &block,
+        key_style.remove_modifier(Modifier::DIM),
+    );
+    put_text(
+        b,
+        r.x + block_width,
+        r.y,
+        r.width - block_width,
+        &format!(" {action}"),
+        Style::default()
+            .fg(p.overlay0)
+            .bg(p.panel_bg)
+            .remove_modifier(Modifier::DIM),
+    );
+}
+
+/// The columns [`dialog_key`] draws.
+fn dialog_key_width((key, action): (&str, &str)) -> u16 {
+    display_width(key) + display_width(action) + 3
+}
+
+/// The widths of a row of dialog keys, for [`row`].
+fn dialog_key_widths(keys: &[(&str, &str)]) -> Vec<u16> {
+    keys.iter().copied().map(dialog_key_width).collect()
+}
+
 fn row(i: Rect, ws: &[u16], gap: u16, off: u16) -> Vec<Rect> {
     let total = ws.iter().sum::<u16>() + gap * (ws.len().saturating_sub(1) as u16);
     let mut x = i.x + i.width.saturating_sub(total) / 2;
@@ -624,16 +677,7 @@ fn render_onboarding_overlay(
     );
 
     let primary = crate::ui::onboarding_welcome_continue_rect(stack.actions.unwrap_or_default());
-    button(
-        b,
-        primary,
-        " ↵ continue ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.accent)
-            .add_modifier(Modifier::BOLD)
-            .remove_modifier(Modifier::DIM),
-    );
+    dialog_key(b, primary, CONTINUE_KEY, p);
     Some(OverlayRender {
         area: outer,
         primary,
@@ -667,25 +711,14 @@ fn render_rename_overlay(
         &v.input,
         Style::default().fg(p.text).bg(p.surface0),
     );
-    let rs = row(i, &[8, 10, 12], 2, 3);
+    let keys = [("Enter", "save"), ("^c", "clear"), CANCEL_KEY];
+    let rs = row(i, &dialog_key_widths(&keys), 2, 3);
     let [save, clear, cancel] = rs.as_slice() else {
         return None;
     };
-    button(
-        b,
-        *save,
-        " ↵ save ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.accent)
-            .add_modifier(Modifier::BOLD),
-    );
-    let n = Style::default()
-        .fg(p.text)
-        .bg(p.surface0)
-        .add_modifier(Modifier::BOLD);
-    button(b, *clear, " ^c clear ", n);
-    button(b, *cancel, " esc cancel ", n);
+    for (rect, key) in [*save, *clear, *cancel].into_iter().zip(keys) {
+        dialog_key(b, rect, key, p);
+    }
     Some(OverlayRender {
         area: q,
         primary: *save,
@@ -1279,28 +1312,13 @@ fn render_confirm_close_overlay(
         &format!(" {}", c.detail),
         Style::default().fg(p.text).bg(p.panel_bg),
     );
-    let rs = row(i, &[13, 12], 2, 3);
+    let keys = [("Enter", "confirm"), CANCEL_KEY];
+    let rs = row(i, &dialog_key_widths(&keys), 2, 3);
     let [ok, cancel] = rs.as_slice() else {
         return None;
     };
-    button(
-        b,
-        *ok,
-        " ↵ confirm ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.red)
-            .add_modifier(Modifier::BOLD),
-    );
-    button(
-        b,
-        *cancel,
-        " esc cancel ",
-        Style::default()
-            .fg(p.text)
-            .bg(p.surface0)
-            .add_modifier(Modifier::BOLD),
-    );
+    dialog_danger_key(b, *ok, keys[0], p);
+    dialog_key(b, *cancel, keys[1], p);
     Some(OverlayRender {
         area: q,
         primary: *ok,

@@ -1,0 +1,50 @@
+ 0 | spaces          │   1        2      +                                  |
+   0-6 26c7086/0/1 7-16 0/0/0 17-17 21e1e2e/0/0 18-25 2181825/289b4fa/0 26-26 0/2181825/0 27-34 26c7086/2313244/0 35-35 0/2181825/0 36-38 27f849c/2181825/0 39-71 0/2181825/0
+ 1 |                 │LIVE                                                  |
+   0-16 0/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 2 | ● herdr         │PANE                                                  |
+   0-0 0/21e1e2e/0 1-1 2f9e2af/21e1e2e/0 2-2 26c7086/21e1e2e/0 3-7 2cdd6f4/21e1e2e/1 8-16 0/21e1e2e/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 3 |   feat/… ↑3 ↓1  │                                                      |
+   0-2 0/21e1e2e/0 3-8 2cba6f7/21e1e2e/0 9-9 26c7086/21e1e2e/0 10-11 2a6e3a1/21e1e2e/0 12-12 0/21e1e2e/0 13-14 2f38ba8/21e1e2e/0 15-16 0/21e1e2e/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 4 | ● dotworks      │                                                      |
+   0-0 0/0/0 1-1 294e2d5/0/0 2-2 26c7086/0/0 3-10 2a6adc8/0/0 11-16 0/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 5 | · notes         │                                                      |
+   0-0 0/0/0 1-2 26c7086/0/0 3-7 2a6adc8/0/0 8-16 0/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 6 |                 │                                                      |
+   0-16 0/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 7 | new         menu│                                                      |
+   0-3 26c7086/0/0 4-12 0/0/0 13-16 26c7086/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+ 8 |─────────────────│                                                      |
+   0-17 21e1e2e/0/0 18-71 0/0/0
+ 9 | agents   grouped│                                                      |
+   0-6 26c7086/0/1 7-9 0/0/0 10-16 26c7086/0/1 17-17 21e1e2e/0/0 18-71 0/0/0
+10 |                 │                                                      |
+   0-16 0/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+11 | ● herdr · 1    ▕│                                                      |
+   0-0 0/21e1e2e/0 1-1 2f9e2af/21e1e2e/0 2-2 26c7086/21e1e2e/0 3-7 2cdd6f4/21e1e2e/1 8-11 26c7086/21e1e2e/0 12-15 0/21e1e2e/0 16-16 26c7086/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+12 |   herdr-lead   ▕│                                                      |
+   0-2 0/21e1e2e/0 3-12 26c7086/21e1e2e/0 13-15 0/21e1e2e/0 16-16 26c7086/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+13 | ● herdr · 2    ▕│                                                      |
+   0-0 0/0/0 1-1 2f9e2af/0/0 2-2 26c7086/0/0 3-7 2a6adc8/0/1 8-11 26c7086/0/0 12-15 0/0/0 16-16 26c7086/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+14 |   herdr-w1     ▕│                                                      |
+   0-2 0/0/0 3-10 26c7086/0/0 11-15 0/0/0 16-17 21e1e2e/0/0 18-71 0/0/0
+15 |                «│                                                      |
+   0-15 0/0/0 16-16 26c7086/0/0 17-17 21e1e2e/0/0 18-71 0/0/0
+workspaces: ["Rect { x: 0, y: 2, width: 17, height: 2 } ws_1 indented=false toggle=None", "Rect { x: 0, y: 4, width: 17, height: 1 } ws_2 indented=false toggle=None", "Rect { x: 0, y: 5, width: 17, height: 1 } ws_3 indented=false toggle=None"]
+tabs: [(Rect { x: 18, y: 0, width: 8, height: 1 }, "tab_1"), (Rect { x: 27, y: 0, width: 8, height: 1 }, "tab_2")]
+agents: [(Rect { x: 0, y: 11, width: 16, height: 2 }, "pane_1"), (Rect { x: 0, y: 13, width: 16, height: 2 }, "pane_2")]
+endpoint_agents: []
+workspace_body: Rect { x: 0, y: 2, width: 17, height: 5 }
+workspace_scrollbar: Rect { x: 0, y: 0, width: 0, height: 0 }
+agent_body: Rect { x: 0, y: 11, width: 17, height: 5 }
+agent_scrollbar: Rect { x: 16, y: 11, width: 1, height: 5 }
+agent_sort_toggle: Rect { x: 10, y: 9, width: 7, height: 1 }
+sidebar_divider: Rect { x: 17, y: 0, width: 1, height: 16 }
+sidebar_section_divider: Rect { x: 0, y: 8, width: 17, height: 1 }
+sidebar_toggle: Rect { x: 16, y: 15, width: 1, height: 1 }
+new_workspace: Rect { x: 0, y: 7, width: 5, height: 1 }
+new_tab: Rect { x: 36, y: 0, width: 3, height: 1 }
+tab_scroll_left: Rect { x: 0, y: 0, width: 0, height: 0 }
+tab_scroll_right: Rect { x: 0, y: 0, width: 0, height: 0 }
+global_launcher: Rect { x: 11, y: 7, width: 6, height: 1 }
+max scroll: workspaces 0 agents 1

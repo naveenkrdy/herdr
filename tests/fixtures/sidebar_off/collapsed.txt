@@ -1,0 +1,78 @@
+ 0 |1 ●│   1        2      +                                                                                  |
+   0-1 2cdd6f4/21e1e2e/0 2-2 2f9e2af/21e1e2e/0 3-3 21e1e2e/0/0 4-11 2181825/289b4fa/0 12-12 0/2181825/0 13-20 26c7086/2313244/0 21-21 0/2181825/0 22-24 27f849c/2181825/0 25-105 0/2181825/0
+ 1 |2 ●│LIVE                                                                                                  |
+   0-1 26c7086/0/0 2-2 294e2d5/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 2 |3 ·│PANE                                                                                                  |
+   0-2 26c7086/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 3 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 4 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 5 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 6 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 7 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 8 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+ 9 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+10 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+11 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+12 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+13 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+14 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+15 |───│                                                                                                      |
+   0-3 21e1e2e/0/0 4-105 0/0/0
+16 |1 ●│                                                                                                      |
+   0-1 2cdd6f4/21e1e2e/0 2-2 2f9e2af/21e1e2e/0 3-3 21e1e2e/0/0 4-105 0/0/0
+17 |2 ●│                                                                                                      |
+   0-1 26c7086/0/0 2-2 2f9e2af/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+18 |3 ●│                                                                                                      |
+   0-1 26c7086/0/0 2-2 294e2d5/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+19 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+20 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+21 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+22 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+23 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+24 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+25 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+26 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+27 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+28 |   │                                                                                                      |
+   0-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+29 | » │                                                                                                      |
+   0-0 0/0/0 1-1 26c7086/0/0 2-2 0/0/0 3-3 21e1e2e/0/0 4-105 0/0/0
+workspaces: ["Rect { x: 0, y: 0, width: 3, height: 1 } ws_1 indented=false toggle=None", "Rect { x: 0, y: 1, width: 3, height: 1 } ws_2 indented=false toggle=None", "Rect { x: 0, y: 2, width: 3, height: 1 } ws_3 indented=false toggle=None"]
+tabs: [(Rect { x: 4, y: 0, width: 8, height: 1 }, "tab_1"), (Rect { x: 13, y: 0, width: 8, height: 1 }, "tab_2")]
+agents: [(Rect { x: 0, y: 16, width: 3, height: 1 }, "pane_1"), (Rect { x: 0, y: 17, width: 3, height: 1 }, "pane_2"), (Rect { x: 0, y: 18, width: 3, height: 1 }, "pane_3")]
+endpoint_agents: []
+workspace_body: Rect { x: 0, y: 0, width: 0, height: 0 }
+workspace_scrollbar: Rect { x: 0, y: 0, width: 0, height: 0 }
+agent_body: Rect { x: 0, y: 0, width: 0, height: 0 }
+agent_scrollbar: Rect { x: 0, y: 0, width: 0, height: 0 }
+agent_sort_toggle: Rect { x: 0, y: 0, width: 0, height: 0 }
+sidebar_divider: Rect { x: 0, y: 0, width: 0, height: 0 }
+sidebar_section_divider: Rect { x: 0, y: 0, width: 0, height: 0 }
+sidebar_toggle: Rect { x: 1, y: 29, width: 1, height: 1 }
+new_workspace: Rect { x: 0, y: 0, width: 0, height: 0 }
+new_tab: Rect { x: 22, y: 0, width: 3, height: 1 }
+tab_scroll_left: Rect { x: 0, y: 0, width: 0, height: 0 }
+tab_scroll_right: Rect { x: 0, y: 0, width: 0, height: 0 }
+global_launcher: Rect { x: 0, y: 0, width: 0, height: 0 }
+max scroll: workspaces 0 agents 0

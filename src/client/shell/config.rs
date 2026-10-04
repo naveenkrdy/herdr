@@ -27,8 +27,14 @@ impl ClientShellState {
     }
 
     pub(super) fn persist_chrome_preferences(&mut self, outcome: &mut ClientShellInput) {
+        outcome.repaint |= self.store_chrome_preferences_failed();
+    }
+
+    /// Saves the chrome preferences; true when the save failed and set the endpoint error,
+    /// which a repaint must show.
+    pub(super) fn store_chrome_preferences_failed(&mut self) -> bool {
         let Some(path) = self.config.preferences_path.as_deref() else {
-            return;
+            return false;
         };
         let mut collapsed_groups = self.collapsed_groups.iter().cloned().collect::<Vec<_>>();
         collapsed_groups.sort();
@@ -64,8 +70,9 @@ impl ClientShellState {
         };
         if let Err(error) = preferences::store(path, preferences) {
             self.set_endpoint_error(error);
-            outcome.repaint = true;
+            return true;
         }
+        false
     }
 
     pub(crate) fn reload_client_config(&mut self) {
@@ -109,6 +116,17 @@ impl ClientShellState {
     }
 }
 
+/// What the chrome layout depends on besides the terminal size.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ChromeLayoutInput {
+    pub(super) sidebar_collapsed: bool,
+    pub(super) sidebar_width: u16,
+    /// Tabs in the focused space, for `hide_tab_bar_when_single_tab`.
+    pub(super) tab_count: usize,
+    /// Connected machines; the tree sidebar needs exactly one.
+    pub(super) endpoint_count: usize,
+}
+
 impl ClientShellConfig {
     pub(crate) fn from_config(config: &Config) -> Self {
         let theme_runtime = crate::app::client_theme_runtime_from_config(config);
@@ -118,6 +136,9 @@ impl ClientShellConfig {
             sidebar_max_width: config.ui.sidebar_max_width,
             sidebar_start_collapsed: config.ui.sidebar_start_collapsed,
             sidebar_collapsed_mode: config.ui.sidebar_collapsed_mode,
+            sidebar_tree: config.ui.sidebar_tree,
+            sidebar_tree_panel: config.ui.sidebar_tree_panel,
+            sidebar_tree_icons: config.ui.sidebar_tree_icons,
             mobile_width_threshold: config.ui.mobile_width_threshold,
             tab_bar_position: config.ui.tab_bar_position,
             hide_tab_bar_when_single_tab: config.ui.hide_tab_bar_when_single_tab,
@@ -125,6 +146,8 @@ impl ClientShellConfig {
             agents: config.ui.sidebar.agents.clone(),
             agent_panel_sort: config.ui.agent_panel_sort,
             status_indicators: config.ui.status_indicators,
+            working_spinner: config.ui.working_spinner,
+            sub_agent_spinner: config.ui.sub_agent_spinner,
             sound_enabled: config.ui.sound.enabled,
             toast_delivery: config.ui.toast.delivery,
             toast_delay_seconds: config.ui.toast.delay_seconds,
@@ -320,6 +343,9 @@ impl ClientShellConfig {
                 self.sidebar_min_width = ui.sidebar_min_width;
                 self.sidebar_max_width = ui.sidebar_max_width;
                 self.sidebar_collapsed_mode = ui.sidebar_collapsed_mode;
+                self.sidebar_tree = ui.sidebar_tree;
+                self.sidebar_tree_panel = ui.sidebar_tree_panel;
+                self.sidebar_tree_icons = ui.sidebar_tree_icons;
                 self.mobile_width_threshold = ui.mobile_width_threshold;
                 self.tab_bar_position = ui.tab_bar_position;
                 self.hide_tab_bar_when_single_tab = ui.hide_tab_bar_when_single_tab;
@@ -327,6 +353,8 @@ impl ClientShellConfig {
                 self.agents = ui.sidebar.agents.clone();
                 self.agent_panel_sort = ui.agent_panel_sort;
                 self.status_indicators = ui.status_indicators;
+                self.working_spinner = ui.working_spinner;
+                self.sub_agent_spinner = ui.sub_agent_spinner;
                 self.sound_enabled = ui.sound.enabled;
                 self.toast_delivery = ui.toast.delivery;
                 self.toast_delay_seconds = ui.toast.delay_seconds;
@@ -357,14 +385,25 @@ impl ClientShellConfig {
         diagnostics
     }
 
+    /// The tree sidebar is on for this many connected machines: the setting, with one machine.
+    pub(super) fn tree_sidebar_for(&self, endpoint_count: usize) -> bool {
+        self.sidebar_tree && endpoint_count == 1
+    }
+
+    /// The expanded tree replaces the tab bar outside the mobile layout. The collapsed rail
+    /// lists no tabs, so the tab bar stays while collapsed.
     pub(super) fn layout(
         &self,
         cols: u16,
         rows: u16,
-        sidebar_collapsed: bool,
-        tab_count: usize,
-        sidebar_width: u16,
+        chrome: ChromeLayoutInput,
     ) -> ClientShellLayout {
+        let ChromeLayoutInput {
+            sidebar_collapsed,
+            sidebar_width,
+            tab_count,
+            endpoint_count,
+        } = chrome;
         if cols <= self.mobile_width_threshold {
             let header_height = rows.min(2);
             return ClientShellLayout {
@@ -390,7 +429,9 @@ impl ClientShellConfig {
         }
         .min(cols.saturating_sub(1));
         let main = Rect::new(sidebar_width, 0, cols.saturating_sub(sidebar_width), rows);
-        let show_tab_bar = rows > 1 && !(self.hide_tab_bar_when_single_tab && tab_count == 1);
+        let tree_shown = self.tree_sidebar_for(endpoint_count) && !sidebar_collapsed;
+        let show_tab_bar =
+            rows > 1 && !tree_shown && !(self.hide_tab_bar_when_single_tab && tab_count == 1);
         let tab_height = u16::from(show_tab_bar);
         let (tab_bar, pane_surface) = match self.tab_bar_position {
             TabBarPositionConfig::Top => (
@@ -435,7 +476,17 @@ impl ClientShellConfig {
             .unwrap_or(self.sidebar_width)
             .clamp(min_width, max_width);
         let surface = self
-            .layout(cols, rows, sidebar_collapsed, 0, sidebar_width)
+            .layout(
+                cols,
+                rows,
+                ChromeLayoutInput {
+                    sidebar_collapsed,
+                    sidebar_width,
+                    tab_count: 0,
+                    // The shell starts with only the local endpoint.
+                    endpoint_count: 1,
+                },
+            )
             .pane_surface;
         ClientSurfaceSize {
             cols: surface.width.max(1),
@@ -449,6 +500,36 @@ mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     use super::*;
+
+    #[test]
+    fn live_reload_applies_the_working_spinner() {
+        let mut shell = ClientShellConfig::from_config(&Config::default());
+        assert_eq!(
+            shell.working_spinner,
+            crate::config::WorkingSpinnerStyle::Braille
+        );
+        let mut next = Config::default();
+        next.ui.working_spinner = crate::config::WorkingSpinnerStyle::CircleSlices;
+        assert!(shell.apply_live_config(&next, &[], &[]).is_empty());
+        assert_eq!(
+            shell.working_spinner,
+            crate::config::WorkingSpinnerStyle::CircleSlices
+        );
+    }
+
+    #[test]
+    fn live_reload_applies_the_sub_agent_spinner() {
+        let mut shell = ClientShellConfig::from_config(&Config::default());
+        assert_eq!(
+            shell.sub_agent_spinner,
+            crate::config::SubAgentSpinnerStyle::Auto
+        );
+        let arc = crate::config::SubAgentSpinnerStyle::Arc;
+        let mut next = Config::default();
+        next.ui.sub_agent_spinner = arc;
+        assert!(shell.apply_live_config(&next, &[], &[]).is_empty());
+        assert_eq!(shell.sub_agent_spinner, arc);
+    }
 
     #[test]
     fn live_reload_applies_client_owned_sections() {

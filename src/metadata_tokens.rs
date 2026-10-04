@@ -12,6 +12,53 @@ pub(crate) struct MetadataTokens {
     entries: HashMap<String, MetadataToken>,
 }
 
+/// Tokens carried across a live server swap. A deadline travels as the time
+/// left, because an `Instant` means nothing in the next process.
+#[cfg(unix)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct HandoffMetadataTokens {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tokens: Vec<HandoffMetadataToken>,
+    /// Report order per source, so a stale report sent before the swap cannot
+    /// replace a value restored after it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<HandoffMetadataSource>,
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct HandoffMetadataToken {
+    pub key: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in_ms: Option<u64>,
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct HandoffMetadataSource {
+    pub source: String,
+    pub seq: u64,
+    /// The agent whose exit resets this source's order, when one owns it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+}
+
+#[cfg(unix)]
+impl HandoffMetadataTokens {
+    /// `tokens` and `sources` to carry, the sources in name order; none when both are empty.
+    pub(crate) fn new(
+        tokens: Vec<HandoffMetadataToken>,
+        mut sources: Vec<HandoffMetadataSource>,
+    ) -> Option<Self> {
+        if tokens.is_empty() && sources.is_empty() {
+            return None;
+        }
+        sources.sort_by(|left, right| left.source.cmp(&right.source));
+        Some(Self { tokens, sources })
+    }
+}
+
 pub(crate) const MAX_SEQUENCE_SOURCES: usize = 32;
 
 pub(crate) fn sequence_is_fresh(
@@ -101,6 +148,50 @@ impl MetadataTokens {
             .retain(|_, token| token.expires_at.is_none_or(|deadline| deadline > now));
         self.entries.len() != before
     }
+
+    #[cfg(unix)]
+    pub(crate) fn handoff_tokens(&self, now: Instant) -> Vec<HandoffMetadataToken> {
+        let mut tokens = self
+            .entries
+            .iter()
+            .filter_map(|(key, token)| {
+                let expires_in_ms = match token.expires_at {
+                    Some(deadline) if deadline <= now => return None,
+                    Some(deadline) => Some(
+                        u64::try_from(deadline.duration_since(now).as_millis()).unwrap_or(u64::MAX),
+                    ),
+                    None => None,
+                };
+                Some(HandoffMetadataToken {
+                    key: key.clone(),
+                    value: token.value.clone(),
+                    expires_in_ms,
+                })
+            })
+            .collect::<Vec<_>>();
+        tokens.sort_by(|left, right| left.key.cmp(&right.key));
+        tokens
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn from_handoff(tokens: Vec<HandoffMetadataToken>, now: Instant) -> Self {
+        let entries = tokens
+            .into_iter()
+            .map(|token| {
+                let expires_at = token
+                    .expires_in_ms
+                    .and_then(|ms| now.checked_add(Duration::from_millis(ms)));
+                (
+                    token.key,
+                    MetadataToken {
+                        value: token.value,
+                        expires_at,
+                    },
+                )
+            })
+            .collect();
+        Self { entries }
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +225,42 @@ mod tests {
         assert_eq!(
             accept_sequence(&mut sequences, "source-0", Some(2)),
             Ok(true)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn handoff_keeps_values_and_time_left_and_drops_expired_tokens() {
+        let before = Instant::now();
+        let mut tokens = MetadataTokens::default();
+        tokens.patch(patch(&[("task", Some("W37"))]), None, before);
+        tokens.patch(
+            patch(&[("ask", Some("pick a time"))]),
+            Some(Duration::from_secs(30)),
+            before,
+        );
+        tokens.patch(
+            patch(&[("stage", Some("gone"))]),
+            Some(Duration::from_secs(1)),
+            before,
+        );
+
+        let carried = tokens.handoff_tokens(before + Duration::from_secs(2));
+        let carried: Vec<HandoffMetadataToken> =
+            serde_json::from_value(serde_json::to_value(carried).unwrap()).unwrap();
+        let after = Instant::now() + Duration::from_secs(60);
+        let restored = MetadataTokens::from_handoff(carried, after);
+
+        assert_eq!(
+            restored.values(),
+            HashMap::from([
+                ("task".into(), "W37".into()),
+                ("ask".into(), "pick a time".into()),
+            ])
+        );
+        assert_eq!(
+            restored.next_expiry(),
+            Some(after + Duration::from_secs(28))
         );
     }
 

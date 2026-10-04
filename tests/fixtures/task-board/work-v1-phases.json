@@ -1,0 +1,556 @@
+{
+  "version": 1,
+  "generated": "2026-09-29T10:00:00+05:30",
+  "tasks": [
+    {
+      "n": 1,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "choose the phases colours",
+      "group": "you",
+      "state": "",
+      "since": null,
+      "first_seen": "2026-09-27",
+      "age_days": 2,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [],
+      "owner": "You",
+      "action": "pick a time",
+      "card": "2026-09-29-review-open"
+    },
+    {
+      "n": 2,
+      "space": "dotworks",
+      "project": "dot-works",
+      "task": "update the format doc",
+      "group": "claude",
+      "state": "",
+      "since": null,
+      "first_seen": "2026-09-27",
+      "age_days": 2,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [],
+      "owner": "dotworks-lead",
+      "action": "write the section",
+      "card": "2026-09-29-review-open"
+    },
+    {
+      "n": 3,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "an old done one",
+      "group": "done",
+      "state": "",
+      "since": null,
+      "first_seen": "2026-09-27",
+      "age_days": 2,
+      "stale": false,
+      "done_on": "2026-09-28",
+      "agent": null,
+      "copies": [],
+      "owner": "You",
+      "action": "was done",
+      "card": "2026-09-29-review-open"
+    },
+    {
+      "n": 4,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "an unlinked herdr task",
+      "group": "claude",
+      "state": "",
+      "since": null,
+      "first_seen": "2026-09-27",
+      "age_days": 2,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [],
+      "owner": "me",
+      "action": "tidy",
+      "card": null
+    },
+    {
+      "n": 5,
+      "space": "herdr",
+      "project": "herdr",
+      "task": "send the numbers",
+      "group": "waiting",
+      "state": "",
+      "since": null,
+      "first_seen": "2026-09-27",
+      "age_days": 2,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [],
+      "owner": "Carmen",
+      "action": "send the numbers",
+      "card": "2026-09-29-build-overdue"
+    }
+  ],
+  "work": [
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "plan pending",
+      "stage": "plan",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-plan-pending.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": false,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": "Decide the board's phases before any code.",
+      "approval": "pending",
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": "plan",
+      "slug": "2026-09-29-plan-pending",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "plan approved",
+      "stage": "plan",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-plan-approved.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": false,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": "approved 2026-09-28",
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-plan-approved",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "build overdue",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-build-overdue.md",
+      "branch": "feat/task-board-phases",
+      "commits": 4,
+      "last_commit": "2026-09-28",
+      "steps": [
+        {
+          "text": "Phases view columns.",
+          "full": "Phases view columns.",
+          "done": true,
+          "code": "B2a"
+        },
+        {
+          "text": "Phases view: card status line and the details panel from card fields.",
+          "full": "Phases view: card status line and the details panel from card fields. Every field optional.",
+          "done": false,
+          "code": "B2b"
+        },
+        {
+          "text": "Tidy the docs.",
+          "full": "Tidy the docs.",
+          "done": false,
+          "code": null
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": "Draw each card's phase status and a details panel.",
+      "approval": null,
+      "due": "2026-09-26",
+      "due_text": "Overdue 3d",
+      "due_level": "overdue",
+      "started": "2026-09-26",
+      "phase": null,
+      "slug": "2026-09-29-build-overdue",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": "2026-09-29"
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "build today",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-build-today.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": {
+        "pane": "w36:pV",
+        "name": "herdr-w1",
+        "minutes": 12
+      },
+      "objective": null,
+      "approval": null,
+      "due": "2026-09-29",
+      "due_text": "Today",
+      "due_level": "today",
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-build-today",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "build on track",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-build-on-track.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-build-on-track",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "review open",
+      "stage": "review",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-review-open.md",
+      "branch": "feat/phases",
+      "commits": 9,
+      "last_commit": "2026-09-28",
+      "steps": [
+        {
+          "text": "Board columns.",
+          "full": "Board columns.",
+          "done": true,
+          "code": "B1"
+        },
+        {
+          "text": "Panel fields.",
+          "full": "Panel fields.",
+          "done": true,
+          "code": null
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": "One board for tasks and phases, readable at a glance on a laptop screen.",
+      "approval": null,
+      "due": "2026-10-01",
+      "due_text": "Thu",
+      "due_level": "soon",
+      "started": "2026-09-26",
+      "phase": "review",
+      "slug": "2026-09-29-review-open",
+      "findings": [
+        {
+          "severity": "LOW",
+          "text": "Old spacing nit.",
+          "open": false
+        },
+        {
+          "severity": "HIGH",
+          "text": "Panel cuts long titles.",
+          "open": true
+        },
+        {
+          "severity": null,
+          "text": "A finding with no severity.",
+          "open": false
+        },
+        {
+          "severity": "medium",
+          "text": "Timeline drops the year.",
+          "open": true
+        }
+      ],
+      "verification": null,
+      "release": null,
+      "last_activity": "2026-09-29"
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "review passed",
+      "stage": "review",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-review-passed.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-review-passed",
+      "findings": [
+        {
+          "severity": "HIGH",
+          "text": "Fixed crash.",
+          "open": false
+        }
+      ],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "review none",
+      "stage": "review",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-review-none.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-review-none",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "verify done",
+      "stage": "verify",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-verify-done.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-verify-done",
+      "findings": [],
+      "verification": "Ran the suite.\nAll 12 green.",
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "verify waiting",
+      "stage": "verify",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-verify-waiting.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-verify-waiting",
+      "findings": [],
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "ship",
+      "stage": "shipped",
+      "status": "closed",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-ship.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "Write it.",
+          "full": "Write it.",
+          "done": true,
+          "code": "A1"
+        }
+      ],
+      "shipped_on": "2026-09-28",
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": "",
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": "2026-09-29-ship",
+      "findings": [],
+      "verification": null,
+      "release": "PR #12 merged.",
+      "last_activity": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "all null",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-29-all-null.md",
+      "branch": "",
+      "commits": 0,
+      "last_commit": null,
+      "steps": [
+        {
+          "text": "No code here.",
+          "full": "No code here.",
+          "done": false,
+          "code": null
+        }
+      ],
+      "shipped_on": null,
+      "agent": null,
+      "objective": null,
+      "approval": null,
+      "due": null,
+      "due_text": null,
+      "due_level": null,
+      "started": null,
+      "phase": null,
+      "slug": null,
+      "findings": null,
+      "verification": null,
+      "release": null,
+      "last_activity": null
+    }
+  ],
+  "problems": []
+}

@@ -72,6 +72,7 @@ pub(crate) fn keybind_help_groups(
                 entry(crate::config::format_prefix_combos(prefixes), "prefix mode"),
                 entry(binding_label(&keybinds.help), "keybinds"),
                 entry(binding_label(&keybinds.settings), "settings"),
+                entry(binding_label(&keybinds.open_task_board), "task board"),
                 entry(binding_label(&keybinds.detach), "detach"),
                 entry(binding_label(&keybinds.reload_config), "reload config"),
                 entry(

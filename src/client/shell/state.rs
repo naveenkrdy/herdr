@@ -18,6 +18,9 @@ pub(crate) struct ClientShellConfig {
     pub(super) sidebar_max_width: u16,
     pub(super) sidebar_start_collapsed: bool,
     pub(super) sidebar_collapsed_mode: SidebarCollapsedModeConfig,
+    pub(super) sidebar_tree: bool,
+    pub(super) sidebar_tree_panel: bool,
+    pub(super) sidebar_tree_icons: crate::config::SidebarTreeIconsConfig,
     pub(super) mobile_width_threshold: u16,
     pub(super) tab_bar_position: TabBarPositionConfig,
     pub(super) hide_tab_bar_when_single_tab: bool,
@@ -25,6 +28,8 @@ pub(crate) struct ClientShellConfig {
     pub(super) agents: crate::config::AgentsSidebarConfig,
     pub(super) agent_panel_sort: crate::config::AgentPanelSortConfig,
     pub(super) status_indicators: crate::config::StatusIndicatorStyle,
+    pub(super) working_spinner: crate::config::WorkingSpinnerStyle,
+    pub(super) sub_agent_spinner: crate::config::SubAgentSpinnerStyle,
     pub(super) sound_enabled: bool,
     pub(super) toast_delivery: crate::config::ToastDelivery,
     pub(super) toast_delay_seconds: u64,
@@ -89,6 +94,18 @@ pub(super) struct ShellHitMap {
     pub(super) workspace_scrollbar: Rect,
     pub(super) workspace_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) workspace_max_scroll: usize,
+    pub(super) tree_rows: Vec<(Rect, super::tree_sidebar::TreeTarget)>,
+    /// The tree sidebar panel's item lines; titles and summary lines are not targets.
+    pub(super) tree_panel: Vec<(Rect, super::tree_sidebar::TreeTarget)>,
+    /// Tree space rows that stand for their only agent, by that agent's pane ID.
+    pub(super) tree_space_agents: Vec<(Rect, String)>,
+    /// Tree space rows that stand for a shell, by its pane ID: a click focuses it, but the
+    /// row's menu and the task board treat it as the space.
+    pub(super) tree_space_shells: Vec<(Rect, String)>,
+    /// The `+` cells on tree space rows.
+    pub(super) tree_new_tab: Vec<(Rect, super::tree_sidebar::TreeTarget)>,
+    /// The fold arrows of split tabs in the tree, by tab ID.
+    pub(super) tree_tab_folds: Vec<(Rect, String)>,
     pub(super) tabs: Vec<(Rect, String)>,
     pub(super) panes: Vec<PaneHit>,
     pub(super) popup: Option<PaneHit>,
@@ -104,6 +121,17 @@ pub(super) struct ShellHitMap {
     pub(super) sidebar_section_divider: Rect,
     pub(super) sidebar_toggle: Rect,
     pub(super) new_workspace: Rect,
+    /// The tree sidebar header's `+`, a second way to make a new space.
+    pub(super) new_workspace_header: Rect,
+    /// The tree sidebar header's task board icon: opens or closes the board.
+    pub(super) tree_task_board: Rect,
+    /// The tree sidebar header's search icon: opens the go-to navigator.
+    pub(super) tree_search: Rect,
+    /// The tree sidebar header's fold-all icon: folds every space, or opens them all.
+    pub(super) tree_fold_all: Rect,
+    /// The tree sidebar header's filter icon: a click steps to the next filter, a right
+    /// click shows all.
+    pub(super) tree_filter: Rect,
     pub(super) new_tab: Rect,
     pub(super) tab_scroll_left: Rect,
     pub(super) tab_scroll_right: Rect,
@@ -138,6 +166,7 @@ pub(super) struct ShellHitMap {
     pub(super) release_notes_scrollbar: Rect,
     pub(super) release_notes_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) release_notes_max_scroll: usize,
+    pub(super) task_board: super::task_board::TaskBoardHits,
 }
 
 #[derive(Clone)]
@@ -254,6 +283,13 @@ pub(crate) enum ClientShellAction {
     },
     ReplayMouse(Vec<crossterm::event::MouseEvent>),
     Keybind(crate::input::KeybindAction),
+    /// A request sent beside the endpoint's ordered command lane (`tasks.list`, `tasks.act`), so no
+    /// other action waits behind it.
+    EndpointSide {
+        endpoint_id: ClientEndpointId,
+        boot_id: String,
+        request: Box<crate::api::schema::Request>,
+    },
 }
 
 #[derive(Default)]
@@ -388,6 +424,7 @@ pub(super) enum ClientSettingsSection {
     Sound,
     Toast,
     Integrations,
+    Sidebar,
 }
 
 impl ClientSettingsSection {
@@ -397,6 +434,7 @@ impl ClientSettingsSection {
         Self::Sound,
         Self::Toast,
         Self::Integrations,
+        Self::Sidebar,
     ];
 
     pub(super) fn label(self) -> &'static str {
@@ -406,6 +444,7 @@ impl ClientSettingsSection {
             Self::Sound => "sound",
             Self::Toast => "toasts",
             Self::Integrations => "integrations",
+            Self::Sidebar => "sidebar",
         }
     }
 }
@@ -420,6 +459,69 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,
     pub(super) installing_integrations: bool,
+    /// The sidebar section's switches as saved.
+    pub(super) sidebar_switches: SidebarSwitches,
+    /// The indicators section's choices as saved.
+    pub(super) indicators: IndicatorChoices,
+}
+
+/// The settings overlay's indicators choices as saved: the status style, the main agent's
+/// spinner and the sub-agents'. Its lines list the two status styles, every set for the
+/// main agent, then auto and every set for the sub-agents.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct IndicatorChoices {
+    pub(super) status: crate::config::StatusIndicatorStyle,
+    pub(super) spinner: crate::config::WorkingSpinnerStyle,
+    pub(super) sub_spinner: crate::config::SubAgentSpinnerStyle,
+}
+
+impl IndicatorChoices {
+    /// The status styles' lines come first.
+    pub(super) const STATUS_LINES: usize = 2;
+    /// The main agent's sets follow.
+    pub(super) const SPINNER_LINES: usize = crate::config::WorkingSpinnerStyle::ALL.len();
+    /// Then auto and every set for the sub-agents.
+    pub(super) const SUB_SPINNER_LINES: usize = 1 + crate::config::WorkingSpinnerStyle::ALL.len();
+    pub(super) const LINES: usize =
+        Self::STATUS_LINES + Self::SPINNER_LINES + Self::SUB_SPINNER_LINES;
+
+    /// The choice on line `line`, if there is one.
+    pub(super) fn line(line: usize) -> Option<IndicatorLine> {
+        use crate::config::{StatusIndicatorStyle, SubAgentSpinnerStyle, WorkingSpinnerStyle};
+        let status = [StatusIndicatorStyle::Dots, StatusIndicatorStyle::Symbols];
+        if let Some(style) = status.get(line) {
+            return Some(IndicatorLine::Status(*style));
+        }
+        let line = line - Self::STATUS_LINES;
+        if let Some(style) = WorkingSpinnerStyle::ALL.get(line) {
+            return Some(IndicatorLine::Spinner(*style));
+        }
+        match line - Self::SPINNER_LINES {
+            0 => Some(IndicatorLine::SubSpinner(SubAgentSpinnerStyle::Auto)),
+            set => WorkingSpinnerStyle::ALL
+                .get(set - 1)
+                .map(|style| IndicatorLine::SubSpinner(SubAgentSpinnerStyle::from_set(*style))),
+        }
+    }
+}
+
+/// One line of the settings overlay's indicators section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum IndicatorLine {
+    Status(crate::config::StatusIndicatorStyle),
+    Spinner(crate::config::WorkingSpinnerStyle),
+    SubSpinner(crate::config::SubAgentSpinnerStyle),
+}
+
+/// The settings overlay's sidebar lines, in the order they are listed.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct SidebarSwitches {
+    pub(super) tree: bool,
+    pub(super) panel: bool,
+}
+
+impl SidebarSwitches {
+    pub(super) const LINES: usize = 2;
 }
 
 #[derive(Debug)]
@@ -527,19 +629,35 @@ pub(super) enum ClientContextMenuAction {
     ClosePane,
 }
 
+/// What a space's menu offers for it.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ClientSpaceMenu {
+    pub(super) is_git: bool,
+    pub(super) is_linked_worktree: bool,
+    pub(super) has_worktree_children: bool,
+    /// Close takes the space's linked worktrees with it.
+    pub(super) close_group: bool,
+    pub(super) collapsed: bool,
+}
+
+/// A sidebar row's menu around its pane's items: New tab, Split right and Split down on the
+/// row's space and pane first, and, on a space row, the space's items last.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ClientRowMenu {
+    pub(super) space: Option<ClientSpaceMenu>,
+}
+
 #[derive(Debug)]
 pub(super) enum ClientContextMenuTarget {
     Workspace {
         workspace_id: String,
-        is_git: bool,
-        is_linked_worktree: bool,
-        has_worktree_children: bool,
-        close_group: bool,
-        collapsed: bool,
+        space: ClientSpaceMenu,
     },
     Tab {
         tab_id: String,
         workspace_id: String,
+        /// A sidebar tab row's menu also splits the tab's focused pane.
+        splits: bool,
     },
     Pane {
         pane_id: String,
@@ -547,6 +665,8 @@ pub(super) enum ClientContextMenuTarget {
         source_pane_id: Option<String>,
         has_manual_label: bool,
         right_click_passthrough: bool,
+        /// A sidebar row standing for the pane; none on the pane itself.
+        row: Option<ClientRowMenu>,
     },
 }
 
@@ -776,7 +896,7 @@ pub(super) struct ClientPaneClick {
 impl ClientPaneClick {
     pub(super) fn is_double_click_for(&self, next: &Self) -> bool {
         self.pane_id == next.pane_id
-            && next.at.duration_since(self.at) <= std::time::Duration::from_millis(350)
+            && next.at.duration_since(self.at) <= super::mouse::DOUBLE_CLICK_TIME
             && self.viewport_row.abs_diff(next.viewport_row) <= 1
             && self.col.abs_diff(next.col) <= 1
     }
@@ -876,6 +996,16 @@ pub(crate) struct ClientShellState {
     pub(super) sidebar_section_split_manual: bool,
     pub(super) agent_panel_sort_manual: bool,
     pub(super) last_sidebar_divider_click: Option<std::time::Instant>,
+    /// The tree space row under the mouse, which shows its new tab `+`.
+    pub(super) hovered_tree_space: Option<String>,
+    /// The tree sidebar's or rail's row under the mouse, by the last frame's hit area: it
+    /// draws on the focused row's grey.
+    pub(super) hovered_tree_row: Option<Rect>,
+    /// The tree header's filter: which agents' rows the tree shows. Kept while this client
+    /// runs, never saved.
+    pub(super) tree_filter: super::tree_sidebar::TreeFilter,
+    /// The user's home folder, read once here so render never reads the environment.
+    pub(super) home_dir: Option<String>,
     pub(super) chrome_drag: Option<ClientChromeDrag>,
     pub(super) workspace_press: Option<ClientWorkspacePress>,
     pub(super) tab_press: Option<ClientTabPress>,
@@ -894,6 +1024,12 @@ pub(crate) struct ClientShellState {
     pub(super) last_composed_size: Option<(u16, u16)>,
     pub(super) last_composed_at: Option<std::time::Instant>,
     pub(super) selection_repaint_deadline: Option<std::time::Instant>,
+    /// Milliseconds from `sidebar_spinner_started_at` to the last spinner tick; render
+    /// reads each row's frame from it.
+    pub(super) sidebar_spinner_ms: u64,
+    pub(super) sidebar_spinner_started_at: Option<std::time::Instant>,
+    /// When a shown spinner set next turns; none while nothing spins.
+    pub(super) sidebar_spinner_next_at: Option<std::time::Instant>,
     pub(super) hits: ShellHitMap,
     pub(super) endpoints: Vec<ClientShellEndpoint>,
     pub(super) active_endpoint_id: ClientEndpointId,
@@ -949,6 +1085,8 @@ pub(crate) struct ClientShellState {
     pub(super) endpoint_error: Option<String>,
     pub(super) endpoint_error_deadline: Option<std::time::Instant>,
     pub(super) dismissed_product_announcement: Option<(String, String)>,
+    /// The task board, drawn instead of the panes while open.
+    pub(super) task_board: super::task_board::TaskBoard,
 }
 
 pub(super) fn product_announcement_state(
@@ -980,6 +1118,13 @@ pub(super) struct WorkspaceEntry {
     pub(super) index: usize,
     pub(super) indented: bool,
     pub(super) last_child: bool,
+}
+
+/// The user's home folder as `~` expands (`HOME`; on Windows `USERPROFILE` first), or
+/// nothing when there is none.
+fn user_home_dir() -> Option<String> {
+    let home = crate::worktree::expand_tilde_path("~");
+    (home.as_os_str() != "~").then(|| home.to_string_lossy().into_owned())
 }
 
 impl ClientShellState {
@@ -1041,6 +1186,10 @@ impl ClientShellState {
             sidebar_section_split_manual: preferences.sidebar_section_split.is_some(),
             agent_panel_sort_manual: preferences.agent_panel_sort.is_some(),
             last_sidebar_divider_click: None,
+            hovered_tree_space: None,
+            hovered_tree_row: None,
+            tree_filter: Default::default(),
+            home_dir: user_home_dir(),
             chrome_drag: None,
             workspace_press: None,
             tab_press: None,
@@ -1059,6 +1208,9 @@ impl ClientShellState {
             last_composed_size: None,
             last_composed_at: None,
             selection_repaint_deadline: None,
+            sidebar_spinner_ms: 0,
+            sidebar_spinner_started_at: None,
+            sidebar_spinner_next_at: None,
             hits: ShellHitMap::default(),
             endpoints: vec![local_endpoint()],
             active_endpoint_id: ClientEndpointId::Local,
@@ -1114,6 +1266,7 @@ impl ClientShellState {
             endpoint_error: None,
             endpoint_error_deadline: None,
             dismissed_product_announcement: None,
+            task_board: super::task_board::TaskBoard::default(),
         }
     }
 
@@ -1152,22 +1305,69 @@ impl ClientShellState {
         }
     }
 
+    /// The fold set of one machine, made on first use for a remote one.
+    fn collapsed_groups_for_endpoint_mut(
+        &mut self,
+        endpoint_id: &ClientEndpointId,
+    ) -> &mut HashSet<String> {
+        if endpoint_id.is_local() {
+            &mut self.collapsed_groups
+        } else {
+            self.remote_collapsed_groups
+                .entry(endpoint_id.clone())
+                .or_default()
+        }
+    }
+
     pub(super) fn group_is_collapsed(&self, endpoint_id: &ClientEndpointId, key: &str) -> bool {
         self.collapsed_groups_for_endpoint(endpoint_id)
             .is_some_and(|groups| groups.contains(key))
     }
 
     pub(super) fn toggle_collapsed_group(&mut self, endpoint_id: &ClientEndpointId, key: String) {
-        let groups = if endpoint_id.is_local() {
-            &mut self.collapsed_groups
-        } else {
-            self.remote_collapsed_groups
-                .entry(endpoint_id.clone())
-                .or_default()
-        };
+        let groups = self.collapsed_groups_for_endpoint_mut(endpoint_id);
         if !groups.remove(&key) {
             groups.insert(key);
         }
+    }
+
+    /// Folds every space of the tree, or opens them all when every one is folded already.
+    /// Split tab folds stay as they are.
+    pub(super) fn toggle_all_space_folds(&mut self) {
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let empty = HashSet::new();
+        let fold = !super::tree_sidebar::every_space_folded(
+            snapshot,
+            self.collapsed_groups_for_endpoint(&self.active_endpoint_id)
+                .unwrap_or(&empty),
+        );
+        let keys = snapshot
+            .workspaces
+            .iter()
+            .map(|workspace| super::tree_sidebar::tree_fold_key(&workspace.workspace_id))
+            .collect::<Vec<_>>();
+        let endpoint_id = self.active_endpoint_id.clone();
+        let groups = self.collapsed_groups_for_endpoint_mut(&endpoint_id);
+        if fold {
+            groups.extend(keys);
+        } else {
+            for key in &keys {
+                groups.remove(key);
+            }
+        }
+    }
+
+    /// Tree mode lists spaces flat in snapshot order; navigation follows that order.
+    pub(super) fn tree_sidebar_mode(&self) -> bool {
+        self.tree_sidebar_configured() && !self.mobile_layout_active()
+    }
+
+    /// The tree setting is on and one machine is connected; the mobile check is left to the
+    /// caller, since the layout that decides it needs this answer first.
+    fn tree_sidebar_configured(&self) -> bool {
+        self.config.tree_sidebar_for(self.endpoints.len())
     }
 
     pub(super) fn navigation_workspace_entries(
@@ -1175,7 +1375,9 @@ impl ClientShellState {
         snapshot: &ClientShellSnapshot,
     ) -> Vec<WorkspaceEntry> {
         let empty_collapsed_groups = HashSet::new();
-        if self.mobile_layout_active() {
+        if self.tree_sidebar_mode() {
+            flat_workspace_entries(snapshot)
+        } else if self.mobile_layout_active() {
             render::workspace_entries(snapshot, &empty_collapsed_groups)
         } else {
             render::workspace_entries(
@@ -1187,11 +1389,15 @@ impl ClientShellState {
     }
 
     pub(super) fn reveal_workspace(&mut self, workspace_id: &str) {
-        if self
-            .hits
-            .workspaces
-            .iter()
-            .any(|hit| hit.workspace_id == workspace_id)
+        // The tree scrolls by row, not by space, so an entry index here would be wrong. The
+        // jump's focus request comes back as a snapshot whose focus change sets
+        // `reveal_focused_workspace`, and the tree render then reveals that space and pane.
+        if self.tree_sidebar_mode()
+            || self
+                .hits
+                .workspaces
+                .iter()
+                .any(|hit| hit.workspace_id == workspace_id)
         {
             return;
         }
@@ -1209,9 +1415,12 @@ impl ClientShellState {
         self.config.layout(
             cols,
             rows,
-            self.sidebar_collapsed,
-            self.focused_tab_count(),
-            self.sidebar_width,
+            super::config::ChromeLayoutInput {
+                sidebar_collapsed: self.sidebar_collapsed,
+                sidebar_width: self.sidebar_width,
+                tab_count: self.focused_tab_count(),
+                endpoint_count: self.endpoints.len(),
+            },
         )
     }
 
@@ -1225,6 +1434,7 @@ impl ClientShellState {
 
     pub(super) fn reset_endpoint_projection(&mut self) {
         self.hits = ShellHitMap::default();
+        self.task_board.forget_endpoint();
         self.pane_surface = None;
         self.pending_pane_surface = None;
         self.input_leases = ClientInputLeases::default();
@@ -1409,12 +1619,29 @@ impl ClientShellState {
                     })
                 || render::tab_bar_status_width(current) != render::tab_bar_status_width(&snapshot)
         });
+        // Tree folds are keyed by local space IDs; another machine's IDs could match them.
+        if self.active_endpoint_id.is_local()
+            && super::tree_sidebar::unfold_blocked_spaces(&snapshot, &mut self.collapsed_groups)
+        {
+            // The runtime composes after every snapshot, which shows a failed save.
+            self.store_chrome_preferences_failed();
+        }
         if self
             .snapshot
             .as_deref()
             .and_then(|current| current.focused_workspace_id.as_deref())
             != snapshot.focused_workspace_id.as_deref()
         {
+            self.reveal_focused_workspace = true;
+        }
+        if self.tree_sidebar_mode()
+            && self
+                .snapshot
+                .as_deref()
+                .and_then(|current| current.focused_pane_id.as_deref())
+                != snapshot.focused_pane_id.as_deref()
+        {
+            // The tree shows panes, so a pane focus change inside one space must stay visible.
             self.reveal_focused_workspace = true;
         }
         if tab_layout_changed
@@ -1655,6 +1882,7 @@ impl ClientShellState {
             .as_deref()
             .map(|popup| popup.terminal_id.clone());
         if previous_popup != next_popup {
+            self.follow_task_board_popup(next_popup.is_some());
             if next_popup.is_some() && matches!(self.overlay, Some(ClientShellOverlay::Settings(_)))
             {
                 self.cancel_settings_overlay();
@@ -1865,11 +2093,57 @@ impl ClientShellState {
         false
     }
 
+    /// Move the tree-mode spinner's clock to `now` and repaint when a spinner set turns,
+    /// only while the sidebar shows a Working agent or the open task board's last frame drew
+    /// one's spinner (`hits.task_board.spins`). Each set turns
+    /// at its own pace, so the next tick is due when the first of the lead's and the
+    /// worker's sets turns.
+    pub(crate) fn tick_sidebar_spinner(&mut self, now: std::time::Instant) -> bool {
+        if self.sidebar_spinner_next_at.is_some_and(|at| now < at) {
+            return false;
+        }
+        let sidebar = self.config.sidebar_tree
+            && self.endpoints.len() == 1
+            && self
+                .last_composed_size
+                .is_some_and(|(cols, rows)| self.layout(cols, rows).sidebar.width > 0);
+        let working = || {
+            self.snapshot.as_deref().is_some_and(|snapshot| {
+                snapshot
+                    .agents
+                    .iter()
+                    .any(|agent| agent.agent_status == crate::api::schema::AgentStatus::Working)
+            })
+        };
+        let spinning = (sidebar || self.task_board.open)
+            && working()
+            && (sidebar || self.hits.task_board.spins);
+        if !spinning {
+            self.sidebar_spinner_next_at = None;
+            return false;
+        }
+        let started = *self.sidebar_spinner_started_at.get_or_insert(now);
+        // u64 milliseconds last 584 million years, so the cast keeps every value.
+        let ms = now.saturating_duration_since(started).as_millis() as u64;
+        self.sidebar_spinner_ms = ms;
+        let until_turn = |nested| {
+            let pace = super::tree_sidebar::spinner_pace_ms(super::tree_sidebar::spinner_set(
+                &self.config,
+                nested,
+            ));
+            pace - ms % pace
+        };
+        let wait = until_turn(false).min(until_turn(true));
+        self.sidebar_spinner_next_at = Some(now + std::time::Duration::from_millis(wait));
+        true
+    }
+
     pub(crate) fn timer_delay(&self, now: std::time::Instant) -> std::time::Duration {
         let default = std::time::Duration::from_millis(100);
         self.selection_autoscroll_deadline
             .into_iter()
             .chain(self.selection_repaint_deadline)
+            .chain(self.sidebar_spinner_next_at)
             .min()
             .map(|deadline| deadline.saturating_duration_since(now).min(default))
             .unwrap_or(default)
@@ -1881,4 +2155,14 @@ impl ClientShellState {
         self.hits = ShellHitMap::default();
         self.host_mouse_pixels = None;
     }
+}
+
+pub(super) fn flat_workspace_entries(snapshot: &ClientShellSnapshot) -> Vec<WorkspaceEntry> {
+    (0..snapshot.workspaces.len())
+        .map(|index| WorkspaceEntry {
+            index,
+            indented: false,
+            last_child: false,
+        })
+        .collect()
 }

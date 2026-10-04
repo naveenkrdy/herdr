@@ -54,6 +54,11 @@ pub(super) fn handshake_read_timeout() -> Duration {
     LOCAL_HANDSHAKE_READ_TIMEOUT
 }
 
+/// The outer terminal is Ghostty, from its `TERM_PROGRAM` and `TERM`.
+pub(super) fn terminal_is_ghostty(term_program: &str, term: &str) -> bool {
+    term_program.eq_ignore_ascii_case("ghostty") || term == "xterm-ghostty"
+}
+
 #[cfg(any(unix, test))]
 pub(super) fn direct_graphics_profile_values(
     term_program: &str,
@@ -62,9 +67,9 @@ pub(super) fn direct_graphics_profile_values(
     blocked_transport: bool,
     terminals: bool,
 ) -> bool {
-    let supported = term_program.eq_ignore_ascii_case("ghostty")
+    let supported = terminal_is_ghostty(term_program, term)
         || term_program.eq_ignore_ascii_case("wezterm")
-        || matches!(term, "xterm-ghostty" | "xterm-kitty" | "xterm-wezterm")
+        || matches!(term, "xterm-kitty" | "xterm-wezterm")
         || kitty_window;
     supported && !blocked_transport && terminals
 }

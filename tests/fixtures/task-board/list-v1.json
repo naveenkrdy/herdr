@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "generated": "2026-09-25T08:05:12+05:30",
+  "tasks": [
+    {
+      "n": 1,
+      "space": "oakwood",
+      "project": "Chrome",
+      "task": "Per-client Chrome is stuck at pairing",
+      "group": "you",
+      "state": "go on the pairing broadcast",
+      "since": "2026-09-23",
+      "first_seen": "2026-09-23",
+      "age_days": 2,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 85,
+         "row": "| Chrome | Per-client Chrome is stuck at pairing | Nadine: go on the pairing broadcast | 2026-09-23 |"}
+      ]
+    },
+    {
+      "n": 2,
+      "space": "oakwood",
+      "project": "oak-cli",
+      "task": "Ask eng for an OIDC client for oak",
+      "group": "you",
+      "state": "needs you",
+      "since": "2026-09-22",
+      "first_seen": "2026-09-22",
+      "age_days": 3,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 86,
+         "row": "| oak-cli | Ask eng for an OIDC client for oak | Nadine | 2026-09-22 |"}
+      ]
+    },
+    {
+      "n": 3,
+      "space": "oakwood",
+      "project": "rfc-tool",
+      "task": "Approve the polished wording",
+      "group": "you",
+      "state": "needs you",
+      "since": "2026-09-16",
+      "first_seen": "2026-09-16",
+      "age_days": 9,
+      "stale": true,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/repos/rfc-autofill/docs/STATUS.md", "line": 40,
+         "row": "| Approve the polished wording | Nadine | 2026-09-16 |"}
+      ]
+    },
+    {
+      "n": 4,
+      "space": "herdr",
+      "project": "sidebar",
+      "task": "Say final, then decide the push",
+      "group": "you",
+      "state": "needs you",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/projects/repos/herdr/.lead-notes/STATUS.md", "line": 12,
+         "row": "| Say final, then decide the push | Nadine |"}
+      ]
+    },
+    {
+      "n": 5,
+      "space": "dotworks",
+      "project": "ghostty",
+      "task": "Commit your theme and Ghostty edits",
+      "group": "you",
+      "state": "say commit",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/projects/repos/dot-works/STATUS.md", "line": 30,
+         "row": "| Commit your theme and Ghostty edits | Nadine: say commit |"}
+      ]
+    },
+    {
+      "n": 6,
+      "space": "oakwood",
+      "project": "Causeway",
+      "task": "Compare Carmen's 7 rows with our 30",
+      "group": "claude",
+      "state": "to do",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": {"pane": "w3:p1", "name": "oakwood-ws-lead", "minutes": 4},
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/repos/rfc-autofill/docs/STATUS.md", "line": 85,
+         "row": "| Compare Carmen's 7 rows with our 30 | me {agent: oakwood-ws-lead} |"}
+      ]
+    },
+    {
+      "n": 7,
+      "space": "herdr",
+      "project": "sidebar",
+      "task": "Never cut the lead's name",
+      "group": "claude",
+      "state": "to do",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": null,
+      "agent": {"pane": "w2:p2", "name": "herdr-w1", "minutes": 12},
+      "copies": [
+        {"file": "/home/user/devbox/projects/repos/herdr/.lead-notes/STATUS.md", "line": 14,
+         "row": "| Never cut the lead's name | me {agent: herdr-w1} |"}
+      ]
+    },
+    {
+      "n": 8,
+      "space": "oakwood",
+      "project": "oak-cli",
+      "task": "Stamp the build sha in oak version",
+      "group": "claude",
+      "state": "next oak-cli round",
+      "since": "2026-09-24",
+      "first_seen": "2026-09-24",
+      "age_days": 1,
+      "stale": false,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 90,
+         "row": "| oak-cli | Stamp the build sha in oak version | me: next oak-cli round | 2026-09-24 |"}
+      ]
+    },
+    {
+      "n": 9,
+      "space": "oakwood",
+      "project": "onboard",
+      "task": "Run client-onboard live once, end to end, against a fresh sandbox tenant, and write down every step that needed a fix by hand",
+      "group": "claude",
+      "state": "next new client",
+      "since": "2026-09-17",
+      "first_seen": "2026-09-17",
+      "age_days": 8,
+      "stale": true,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/WORKSPACE-STATUS.md", "line": 91,
+         "row": "| onboard | Run client-onboard live once, end to end, against a fresh sandbox tenant, and write down every step that needed a fix by hand | me: next new client | 2026-09-17 |"}
+      ]
+    },
+    {
+      "n": 10,
+      "space": "oakwood",
+      "project": "Causeway",
+      "task": "Settle the security conflicts",
+      "group": "waiting",
+      "state": "Morgan",
+      "since": "2026-09-16",
+      "first_seen": "2026-09-16",
+      "age_days": 9,
+      "stale": true,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/repos/rfc-autofill/docs/STATUS.md", "line": 60,
+         "row": "| Settle the security conflicts | Morgan | 2026-09-16 |"}
+      ]
+    },
+    {
+      "n": 11,
+      "space": "oakwood",
+      "project": "Causeway",
+      "task": "Read 10 implementation answers",
+      "group": "waiting",
+      "state": "senior FDE",
+      "since": "2026-09-16",
+      "first_seen": "2026-09-16",
+      "age_days": 9,
+      "stale": true,
+      "done_on": null,
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/Workdir/oakwood-workspace/repos/rfc-autofill/docs/STATUS.md", "line": 61,
+         "row": "| Read 10 implementation answers | senior FDE | 2026-09-16 |"}
+      ]
+    },
+    {
+      "n": 12,
+      "space": "dotworks",
+      "project": "task board",
+      "task": "Box lines on the /clear screen",
+      "group": "done",
+      "state": "to do",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": "2026-09-25",
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/projects/repos/dot-works/STATUS.md", "line": 31,
+         "row": "| Box lines on the /clear screen | me {done: marked 2026-09-25} |"}
+      ]
+    },
+    {
+      "n": 13,
+      "space": "herdr",
+      "project": "sidebar",
+      "task": "Blue terminal icon in Vesper",
+      "group": "done",
+      "state": "to do",
+      "since": null,
+      "first_seen": "2026-09-25",
+      "age_days": 0,
+      "stale": false,
+      "done_on": "2026-09-25",
+      "agent": null,
+      "copies": [
+        {"file": "/home/user/devbox/projects/repos/herdr/.lead-notes/STATUS.md", "line": 15,
+         "row": "| Blue terminal icon in Vesper | me {done: marked 2026-09-25} |"},
+        {"file": "/home/user/devbox/projects/repos/herdr/docs/STATUS.md", "line": 7,
+         "row": "| Blue terminal icon in Vesper | me {done: marked 2026-09-25} |"}
+      ]
+    }
+  ],
+  "work": [
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "Tree sidebar",
+      "stage": "check",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-24-tree-sidebar.md",
+      "branch": "feat/sidebar-tree",
+      "commits": 4,
+      "steps": [{"text": "tree rows", "done": true}],
+      "shipped_on": null,
+      "agent": null
+    },
+    {
+      "space": "herdr",
+      "project": "herdr",
+      "kind": "feature",
+      "title": "Task board",
+      "stage": "build",
+      "status": "open",
+      "file": "/home/user/devbox/projects/repos/herdr/docs/intent/2026-09-25-task-board.md",
+      "branch": "feat/task-board",
+      "commits": 1,
+      "steps": [{"text": "tasks view", "done": true}, {"text": "work view", "done": false}],
+      "shipped_on": null,
+      "agent": {"pane": "w2:p2", "name": "herdr-w1", "minutes": 12}
+    }
+  ],
+  "problems": ["/home/user/devbox/Workdir/oakwood-workspace/OLD-NOTES.md: no Task/Item or Owner column"]
+}

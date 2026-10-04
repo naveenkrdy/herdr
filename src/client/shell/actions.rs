@@ -43,6 +43,11 @@ impl ClientShellState {
                     self.begin_worktree_action(action, outcome);
                     return;
                 }
+                if action == crate::input::KeybindAction::OpenTaskBoard {
+                    self.toggle_task_board(super::task_board::BoardOpener::Key);
+                    outcome.repaint = true;
+                    return;
+                }
                 if action == crate::input::KeybindAction::OpenNavigator {
                     self.open_navigator_overlay();
                     outcome.repaint = true;
@@ -466,6 +471,15 @@ impl ClientShellState {
     }
 
     pub(crate) fn cancel_endpoint_request(&mut self, request_id: &str) -> bool {
+        if self.cancel_task_list(request_id) {
+            return false;
+        }
+        if self.cancel_task_act(request_id) {
+            return self.task_board.open;
+        }
+        if self.cancel_task_open(request_id) {
+            return self.task_board.open;
+        }
         let Some(pending) = self.pending_requests.get(request_id) else {
             return false;
         };
@@ -492,6 +506,15 @@ impl ClientShellState {
         request_id: &str,
         result: Result<crate::api::schema::ResponseResult, ClientShellEndpointError>,
     ) -> (bool, Vec<ClientShellAction>) {
+        if self.asks_task_list(request_id) {
+            return (self.receive_task_list(boot_id, result), Vec::new());
+        }
+        if self.acts_on_task(request_id) {
+            return (self.receive_task_act(boot_id, result), Vec::new());
+        }
+        if self.opens_task_file(request_id) {
+            return (self.receive_task_open(boot_id, result), Vec::new());
+        }
         let Some(pending) = self.pending_requests.remove(request_id) else {
             return (false, Vec::new());
         };

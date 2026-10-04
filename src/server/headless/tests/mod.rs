@@ -12,6 +12,8 @@ mod surface_delta_tests;
 mod surface_interest_tests;
 #[path = "surface_scroll.rs"]
 mod surface_scroll_tests;
+#[path = "tasks.rs"]
+mod tasks_tests;
 
 fn client_shell_projection(
     receiver: &std::sync::mpsc::Receiver<Vec<u8>>,
@@ -4651,6 +4653,7 @@ fn unchanged_git_refresh_does_not_request_headless_render() {
             ahead_behind: None,
             space: None,
         }],
+        pane_results: Vec::new(),
         cache_updates: Vec::new(),
     });
 
@@ -4677,10 +4680,41 @@ fn changed_git_refresh_requests_headless_render() {
             ahead_behind: None,
             space: None,
         }],
+        pane_results: Vec::new(),
         cache_updates: Vec::new(),
     });
 
     assert!(changed);
+}
+
+#[test]
+fn pane_git_branch_refresh_requests_render_and_reaches_client_snapshot() {
+    let mut server = test_headless_server();
+    let workspace = crate::workspace::Workspace::test_new("one");
+    let pane_id = workspace.tabs[0].root_pane;
+    let cwd = workspace.identity_cwd.clone();
+    server.app.state.workspaces = vec![workspace];
+    server.app.state.ensure_test_terminals();
+    server.app.state.active = Some(0);
+    let refresh = || AppEvent::GitStatusRefreshed {
+        results: Vec::new(),
+        pane_results: vec![crate::workspace::PaneGitStatus {
+            pane_id,
+            cwd: cwd.clone(),
+            status_cache_key: cwd.clone(),
+            branch: Some("feat/tab".into()),
+        }],
+        cache_updates: Vec::new(),
+    };
+
+    assert!(server.handle_internal_event_with_forwarding(refresh()));
+    assert!(!server.handle_internal_event_with_forwarding(refresh()));
+
+    let snapshot = super::super::client_shell::snapshot(&server.app, "boot", 1, None, None);
+    assert_eq!(snapshot.panes.len(), 1);
+    assert_eq!(snapshot.panes[0].git_branch.as_deref(), Some("feat/tab"));
+    let pane_info = server.app.session_snapshot().panes.remove(0);
+    assert_eq!(pane_info.git_branch.as_deref(), Some("feat/tab"));
 }
 
 #[tokio::test]

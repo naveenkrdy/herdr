@@ -46,6 +46,31 @@ fn protocol_schema_document() -> serde_json::Value {
 }
 
 #[test]
+fn pane_info_git_branch_is_omitted_until_known() {
+    let mut pane: PaneInfo = serde_json::from_value(serde_json::json!({
+        "pane_id": "w1:p1",
+        "terminal_id": "t1",
+        "workspace_id": "w1",
+        "tab_id": "w1:t1",
+        "focused": true,
+        "agent_status": "unknown",
+        "revision": 0
+    }))
+    .unwrap();
+    assert_eq!(pane.git_branch, None);
+    assert!(serde_json::to_value(&pane)
+        .unwrap()
+        .get("git_branch")
+        .is_none());
+
+    pane.git_branch = Some("feat/tab".into());
+    assert_eq!(
+        serde_json::to_value(&pane).unwrap()["git_branch"],
+        "feat/tab"
+    );
+}
+
+#[test]
 fn request_uses_dot_method_names() {
     let request = Request {
         id: "req_1".into(),
@@ -826,6 +851,7 @@ fn worktree_request_and_response_round_trip() {
                 focused: true,
                 cwd: Some("/worktrees/herdr/worktree-api".into()),
                 foreground_cwd: None,
+                git_branch: None,
                 restore_error: None,
                 label: None,
                 agent: None,
@@ -1255,6 +1281,7 @@ fn create_response_round_trips_with_root_pane() {
                 focused: false,
                 cwd: Some("/tmp/review".into()),
                 foreground_cwd: None,
+                git_branch: None,
                 restore_error: None,
                 label: None,
                 agent: None,

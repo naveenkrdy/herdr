@@ -361,6 +361,79 @@ fn print_token_rule_profiles() {
     }
 }
 
+/// Pipeline with every pane running a detected agent and the first one Working.
+fn working_agent_pipeline(
+    build: fn(usize) -> Vec<Workspace>,
+    count: usize,
+    config: &Config,
+) -> RenderPipeline {
+    let mut pipeline = RenderPipeline::with_config(build(count), config);
+    pipeline.app.state.ensure_test_terminals();
+    for terminal in pipeline.app.state.terminals.values_mut() {
+        terminal.detected_agent = Some(crate::detect::Agent::Pi);
+    }
+    let mut snapshot = super::client_shell::snapshot(&pipeline.app, "bench-boot", 1, None, None);
+    if let Some(agent) = snapshot.agents.first_mut() {
+        agent.agent_status = crate::api::schema::AgentStatus::Working;
+    }
+    pipeline.client.set_snapshot(Box::new(snapshot));
+    pipeline
+}
+
+/// One timer-driven spinner repaint: advance the frame and recompose the retained surface.
+fn profile_spinner_repaint(mut pipeline: RenderPipeline) -> StageStats {
+    pipeline.render_once();
+    let mut now = Instant::now();
+    let mut samples = Vec::with_capacity(SAMPLE_COUNT);
+    for index in 0..WARMUP_COUNT + SAMPLE_COUNT {
+        now += Duration::from_millis(100);
+        let started = Instant::now();
+        assert!(
+            pipeline.client.tick_sidebar_spinner(now),
+            "a Working agent in tree mode should repaint"
+        );
+        black_box(
+            pipeline
+                .client
+                .compose(COLS, ROWS)
+                .expect("spinner repaint should compose"),
+        );
+        if index >= WARMUP_COUNT {
+            samples.push(started.elapsed());
+        }
+    }
+    summarize(samples)
+}
+
+fn print_sidebar_tree_profiles() {
+    println!("sidebar tree: populated agents, one Working");
+    println!("  layout       panes  tree  compose_median_us  compose_p95_us  spinner_median_us  spinner_p95_us");
+    for (label, build) in [
+        ("background", workspaces as fn(usize) -> Vec<Workspace>),
+        ("active", active_panes),
+    ] {
+        for count in CARDINALITIES {
+            for tree in [false, true] {
+                let mut config = Config::default();
+                config.ui.sidebar_tree = tree;
+                let compose =
+                    profile_pipeline(working_agent_pipeline(build, count, &config)).client;
+                let spinner = tree.then(|| {
+                    profile_spinner_repaint(working_agent_pipeline(build, count, &config))
+                });
+                println!(
+                    "  {label:<10}  {count:>5}  {:>4}  {:>17}  {:>14}  {:>17}  {:>14}",
+                    if tree { "on" } else { "off" },
+                    compose.median_us,
+                    compose.p95_us,
+                    spinner.map_or_else(|| "-".to_owned(), |stats| stats.median_us.to_string()),
+                    spinner.map_or_else(|| "-".to_owned(), |stats| stats.p95_us.to_string()),
+                );
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum SurfaceDamagePattern {
     Dense,
@@ -611,6 +684,7 @@ async fn render_scale_profile() {
     print_profiles("active panes (one workspace)", active_panes);
     print_snapshot_encoding_profiles("active panes", active_panes);
     print_token_rule_profiles();
+    print_sidebar_tree_profiles();
     print_surface_reuse_profiles();
     print_surface_damage_profiles();
 }

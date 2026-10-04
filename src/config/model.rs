@@ -125,6 +125,173 @@ impl StatusIndicatorStyle {
     }
 }
 
+/// The frames a working agent's mark spins through in the sidebar tree. A name of a set
+/// settings no longer lists loads as the listed set closest to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkingSpinnerStyle {
+    /// Nerd Font's progress spinner.
+    NerdSpinner,
+    /// Six-dot braille.
+    #[default]
+    #[serde(alias = "braille_full", alias = "blocks")]
+    Braille,
+    /// Nerd Font circle slices.
+    #[serde(alias = "clock")]
+    CircleSlices,
+    /// Nerd Font moon phases, all 28.
+    #[serde(alias = "moon")]
+    MoonPhases,
+    /// A quarter arc going round.
+    Arc,
+    /// Circle halves.
+    HalfCircles,
+    /// Eight-dot braille, two dots chasing.
+    BrailleChase,
+    /// One braille dot going round.
+    DotOrbit,
+    /// A dot that swells and shrinks.
+    Pulse,
+    /// A turning line.
+    Line,
+    /// A star that turns.
+    Star,
+    /// A diamond that fills.
+    Diamond,
+}
+
+impl WorkingSpinnerStyle {
+    /// Every set, in the order settings lists them.
+    pub const ALL: [Self; 12] = [
+        Self::NerdSpinner,
+        Self::Braille,
+        Self::CircleSlices,
+        Self::MoonPhases,
+        Self::Arc,
+        Self::HalfCircles,
+        Self::BrailleChase,
+        Self::DotOrbit,
+        Self::Pulse,
+        Self::Line,
+        Self::Star,
+        Self::Diamond,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NerdSpinner => "nerd_spinner",
+            Self::Braille => "braille",
+            Self::CircleSlices => "circle_slices",
+            Self::MoonPhases => "moon_phases",
+            Self::Arc => "arc",
+            Self::HalfCircles => "half_circles",
+            Self::BrailleChase => "braille_chase",
+            Self::DotOrbit => "dot_orbit",
+            Self::Pulse => "pulse",
+            Self::Line => "line",
+            Self::Star => "star",
+            Self::Diamond => "diamond",
+        }
+    }
+
+    /// Its glyphs come from a Nerd Font.
+    pub fn needs_nerd_font(self) -> bool {
+        matches!(
+            self,
+            Self::NerdSpinner | Self::CircleSlices | Self::MoonPhases
+        )
+    }
+
+    /// The set a sub-agent spins beside this main set while `ui.sub_agent_spinner` is
+    /// `auto`: one that reads as its companion, often lighter.
+    pub const fn partner(self) -> Self {
+        match self {
+            Self::NerdSpinner | Self::DotOrbit | Self::Pulse | Self::Line => Self::BrailleChase,
+            Self::Braille | Self::Arc | Self::BrailleChase => Self::DotOrbit,
+            Self::CircleSlices | Self::HalfCircles => Self::NerdSpinner,
+            Self::MoonPhases => Self::Arc,
+            Self::Star | Self::Diamond => Self::Pulse,
+        }
+    }
+}
+
+/// The frames a working sub-agent's mark spins through in the sidebar tree: `auto`, the
+/// main set's [partner](WorkingSpinnerStyle::partner), or one set picked by name. A dropped
+/// set's name loads as [`WorkingSpinnerStyle`] maps it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SubAgentSpinnerStyle {
+    /// The main set's partner, following the main pick.
+    #[default]
+    Auto,
+    NerdSpinner,
+    #[serde(alias = "braille_full", alias = "blocks")]
+    Braille,
+    #[serde(alias = "clock")]
+    CircleSlices,
+    #[serde(alias = "moon")]
+    MoonPhases,
+    Arc,
+    HalfCircles,
+    BrailleChase,
+    DotOrbit,
+    Pulse,
+    Line,
+    Star,
+    Diamond,
+}
+
+impl SubAgentSpinnerStyle {
+    /// `set` picked by name.
+    pub const fn from_set(set: WorkingSpinnerStyle) -> Self {
+        match set {
+            WorkingSpinnerStyle::NerdSpinner => Self::NerdSpinner,
+            WorkingSpinnerStyle::Braille => Self::Braille,
+            WorkingSpinnerStyle::CircleSlices => Self::CircleSlices,
+            WorkingSpinnerStyle::MoonPhases => Self::MoonPhases,
+            WorkingSpinnerStyle::Arc => Self::Arc,
+            WorkingSpinnerStyle::HalfCircles => Self::HalfCircles,
+            WorkingSpinnerStyle::BrailleChase => Self::BrailleChase,
+            WorkingSpinnerStyle::DotOrbit => Self::DotOrbit,
+            WorkingSpinnerStyle::Pulse => Self::Pulse,
+            WorkingSpinnerStyle::Line => Self::Line,
+            WorkingSpinnerStyle::Star => Self::Star,
+            WorkingSpinnerStyle::Diamond => Self::Diamond,
+        }
+    }
+
+    /// The set picked by name; none for `auto`.
+    pub const fn set(self) -> Option<WorkingSpinnerStyle> {
+        Some(match self {
+            Self::Auto => return None,
+            Self::NerdSpinner => WorkingSpinnerStyle::NerdSpinner,
+            Self::Braille => WorkingSpinnerStyle::Braille,
+            Self::CircleSlices => WorkingSpinnerStyle::CircleSlices,
+            Self::MoonPhases => WorkingSpinnerStyle::MoonPhases,
+            Self::Arc => WorkingSpinnerStyle::Arc,
+            Self::HalfCircles => WorkingSpinnerStyle::HalfCircles,
+            Self::BrailleChase => WorkingSpinnerStyle::BrailleChase,
+            Self::DotOrbit => WorkingSpinnerStyle::DotOrbit,
+            Self::Pulse => WorkingSpinnerStyle::Pulse,
+            Self::Line => WorkingSpinnerStyle::Line,
+            Self::Star => WorkingSpinnerStyle::Star,
+            Self::Diamond => WorkingSpinnerStyle::Diamond,
+        })
+    }
+
+    /// The set a sub-agent spins beside `main`.
+    pub const fn resolve(self, main: WorkingSpinnerStyle) -> WorkingSpinnerStyle {
+        match self.set() {
+            Some(set) => set,
+            None => main.partner(),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.set().map_or("auto", WorkingSpinnerStyle::as_str)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HostCursorModeConfig {
@@ -140,6 +307,17 @@ pub enum SidebarCollapsedModeConfig {
     #[default]
     Compact,
     Hidden,
+}
+
+/// Glyph set for the sidebar tree's marks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SidebarTreeIconsConfig {
+    /// Plain Unicode every terminal font draws.
+    #[default]
+    Plain,
+    /// Nerd Font icons, such as the Octicons git branch.
+    Nerd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -320,6 +498,7 @@ pub struct Config {
     pub keys: KeysConfig,
     pub ui: UiConfig,
     pub worktrees: WorktreesConfig,
+    pub tasks: TasksConfig,
     pub advanced: AdvancedConfig,
     pub experimental: ExperimentalConfig,
     pub remote: RemoteConfig,
@@ -455,6 +634,8 @@ pub struct KeysConfig {
     pub resize_pane_right: BindingConfig,
     /// Toggle sidebar collapse. Default: "prefix+b"
     pub toggle_sidebar: BindingConfig,
+    /// Open or close the task board. Default: "prefix+a"
+    pub open_task_board: BindingConfig,
     /// Optional indexed shortcuts expanded over number keys 1-9.
     pub indexed: IndexedKeysConfig,
     /// Prefix-mode custom command bindings.
@@ -592,6 +773,8 @@ pub(crate) struct KeysConfigOverlay {
     #[serde(skip_serializing_if = "Option::is_none")]
     toggle_sidebar: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    open_task_board: Option<BindingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     indexed: Option<IndexedKeysConfig>,
     #[serde(skip_serializing)]
     command: Option<Vec<CommandKeybindConfig>>,
@@ -703,6 +886,7 @@ impl<'de> Deserialize<'de> for KeysConfig {
         apply_field!(resize_pane_up);
         apply_field!(resize_pane_right);
         apply_field!(toggle_sidebar);
+        apply_field!(open_task_board);
         apply_field!(indexed);
         apply_field!(command);
 
@@ -808,6 +992,7 @@ impl KeysConfig {
         copy_effective_action_field!(resize_pane_up, keybinds.resize_pane_up);
         copy_effective_action_field!(resize_pane_right, keybinds.resize_pane_right);
         copy_effective_action_field!(toggle_sidebar, keybinds.toggle_sidebar);
+        copy_effective_action_field!(open_task_board, keybinds.open_task_board);
         copy_user_field!(indexed);
 
         profile
@@ -870,6 +1055,28 @@ pub struct IndexedKeysConfig {
 pub struct WorktreesConfig {
     /// Root directory under which Herdr creates <repo>/<branch-slug> checkouts.
     pub directory: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct TasksConfig {
+    /// Program run as `<command> list --json` to answer `tasks.list`. Unset by default, which turns the tasks list off.
+    pub command: Option<String>,
+}
+
+impl TasksConfig {
+    /// The configured program, or `None` when unset or blank.
+    pub(crate) fn command(&self) -> Option<&str> {
+        self.command
+            .as_deref()
+            .map(str::trim)
+            .filter(|command| !command.is_empty())
+    }
+
+    pub(crate) fn diagnostic(&self) -> Option<String> {
+        (self.command.is_some() && self.command().is_none())
+            .then(|| "tasks.command is empty; the tasks list is off".to_owned())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -946,6 +1153,14 @@ pub struct UiConfig {
     pub sidebar_start_collapsed: bool,
     /// Collapsed sidebar presentation. Default: compact.
     pub sidebar_collapsed_mode: SidebarCollapsedModeConfig,
+    /// Show the expanded sidebar as one tree of spaces, tabs and panes. Default: false.
+    pub sidebar_tree: bool,
+    /// In the sidebar tree, show the bottom panel of what needs you and what is done.
+    /// Default: true.
+    pub sidebar_tree_panel: bool,
+    /// Glyphs in the sidebar tree: "plain" Unicode, or "nerd" for Nerd Font icons.
+    /// Default: plain.
+    pub sidebar_tree_icons: SidebarTreeIconsConfig,
     /// Terminal width at or below which Herdr uses the mobile single-column layout. Default: 64.
     pub mobile_width_threshold: u16,
     /// Capture mouse input for Herdr's mouse UI. Default: true.
@@ -998,6 +1213,11 @@ pub struct UiConfig {
     _legacy_agent_panel_scope: Option<LegacyAgentPanelScopeConfig>,
     /// Agent status indicator style. Saved values are "dots" or "symbols". Default: "dots".
     pub status_indicators: StatusIndicatorStyle,
+    /// The sidebar tree's spinner for a working agent. Default: "braille".
+    pub working_spinner: WorkingSpinnerStyle,
+    /// The sidebar tree's spinner for a working sub-agent nested under its lead: "auto", the
+    /// main spinner's partner, or a set. Default: "auto".
+    pub sub_agent_spinner: SubAgentSpinnerStyle,
     /// Expanded sidebar row composition.
     pub sidebar: SidebarConfig,
     /// Accent color for highlights, borders, and navigation UI.
@@ -1177,6 +1397,7 @@ impl Default for KeysConfig {
             resize_pane_up: BindingConfig::empty(),
             resize_pane_right: BindingConfig::empty(),
             toggle_sidebar: BindingConfig::one("prefix+b"),
+            open_task_board: BindingConfig::one("prefix+a"),
             indexed: IndexedKeysConfig::default(),
             command: Vec::new(),
             user_fields: BTreeSet::new(),
@@ -1200,6 +1421,9 @@ impl Default for UiConfig {
             sidebar_max_width: 36,
             sidebar_start_collapsed: false,
             sidebar_collapsed_mode: SidebarCollapsedModeConfig::Compact,
+            sidebar_tree: false,
+            sidebar_tree_panel: true,
+            sidebar_tree_icons: SidebarTreeIconsConfig::Plain,
             mobile_width_threshold: DEFAULT_MOBILE_WIDTH_THRESHOLD,
             mouse_capture: true,
             copy_on_select: true,
@@ -1223,6 +1447,8 @@ impl Default for UiConfig {
             agent_panel_sort: AgentPanelSortConfig::Spaces,
             _legacy_agent_panel_scope: None,
             status_indicators: StatusIndicatorStyle::Dots,
+            working_spinner: WorkingSpinnerStyle::Braille,
+            sub_agent_spinner: SubAgentSpinnerStyle::Auto,
             sidebar: SidebarConfig::default(),
             accent: "cyan".into(),
             toast: ToastConfig::default(),
@@ -1488,6 +1714,120 @@ status_indicators = "symbols"
     }
 
     #[test]
+    fn working_spinner_defaults_to_braille_and_parses_every_set() {
+        assert_eq!(
+            Config::default().ui.working_spinner,
+            WorkingSpinnerStyle::Braille
+        );
+        let curated = [
+            "nerd_spinner",
+            "braille",
+            "circle_slices",
+            "moon_phases",
+            "arc",
+            "half_circles",
+            "braille_chase",
+            "dot_orbit",
+            "pulse",
+            "line",
+            "star",
+            "diamond",
+        ];
+        assert_eq!(
+            WorkingSpinnerStyle::ALL
+                .map(WorkingSpinnerStyle::as_str)
+                .as_slice(),
+            curated.as_slice(),
+            "settings lists the curated sets in this order"
+        );
+        for name in curated {
+            let config: Config =
+                toml::from_str(&format!("[ui]\nworking_spinner = \"{name}\"\n")).unwrap();
+            assert_eq!(config.ui.working_spinner.as_str(), name);
+        }
+    }
+
+    #[test]
+    fn a_dropped_spinner_name_still_loads_as_the_set_that_replaced_it() {
+        for (dropped, kept) in [
+            ("braille_full", "braille"),
+            ("moon", "moon_phases"),
+            ("clock", "circle_slices"),
+            ("blocks", "braille"),
+        ] {
+            let config: Config =
+                toml::from_str(&format!("[ui]\nworking_spinner = \"{dropped}\"\n")).unwrap();
+            assert_eq!(config.ui.working_spinner.as_str(), kept, "main {dropped}");
+            let config: Config =
+                toml::from_str(&format!("[ui]\nsub_agent_spinner = \"{dropped}\"\n")).unwrap();
+            assert_eq!(config.ui.sub_agent_spinner.as_str(), kept, "sub {dropped}");
+        }
+    }
+
+    #[test]
+    fn sub_agent_spinner_defaults_to_auto_and_parses_auto_and_every_set() {
+        assert_eq!(
+            Config::default().ui.sub_agent_spinner,
+            SubAgentSpinnerStyle::Auto
+        );
+        let config: Config = toml::from_str("[ui]\nworking_spinner = \"moon\"\n").unwrap();
+        assert_eq!(
+            config.ui.sub_agent_spinner,
+            SubAgentSpinnerStyle::Auto,
+            "an older config without the key loads with the default"
+        );
+        let config: Config = toml::from_str("[ui]\nsub_agent_spinner = \"auto\"\n").unwrap();
+        assert_eq!(config.ui.sub_agent_spinner, SubAgentSpinnerStyle::Auto);
+        assert_eq!(SubAgentSpinnerStyle::Auto.as_str(), "auto");
+        for style in WorkingSpinnerStyle::ALL {
+            let config: Config = toml::from_str(&format!(
+                "[ui]\nsub_agent_spinner = \"{}\"\n",
+                style.as_str()
+            ))
+            .unwrap();
+            assert_eq!(
+                config.ui.sub_agent_spinner,
+                SubAgentSpinnerStyle::from_set(style)
+            );
+            assert_eq!(config.ui.sub_agent_spinner.as_str(), style.as_str());
+            assert_eq!(config.ui.working_spinner, WorkingSpinnerStyle::Braille);
+        }
+    }
+
+    #[test]
+    fn sub_agent_spinner_auto_is_the_main_sets_partner_and_a_pick_overrides_it() {
+        use WorkingSpinnerStyle as W;
+        let partners = [
+            (W::NerdSpinner, W::BrailleChase),
+            (W::Braille, W::DotOrbit),
+            (W::CircleSlices, W::NerdSpinner),
+            (W::MoonPhases, W::Arc),
+            (W::Arc, W::DotOrbit),
+            (W::HalfCircles, W::NerdSpinner),
+            (W::BrailleChase, W::DotOrbit),
+            (W::DotOrbit, W::BrailleChase),
+            (W::Pulse, W::BrailleChase),
+            (W::Line, W::BrailleChase),
+            (W::Star, W::Pulse),
+            (W::Diamond, W::Pulse),
+        ];
+        assert_eq!(partners.len(), W::ALL.len(), "every main set has a partner");
+        for (main, partner) in partners {
+            assert_eq!(main.partner(), partner, "{main:?}");
+            assert_eq!(
+                SubAgentSpinnerStyle::Auto.resolve(main),
+                partner,
+                "{main:?}"
+            );
+            assert_eq!(
+                SubAgentSpinnerStyle::Arc.resolve(main),
+                W::Arc,
+                "a pick survives main {main:?}"
+            );
+        }
+    }
+
+    #[test]
     fn pane_borders_legacy_booleans_map_to_modes() {
         let enabled: Config = toml::from_str("[ui]\npane_borders = true").unwrap();
         assert_eq!(enabled.ui.pane_borders, PaneBordersConfig::Auto);
@@ -1563,6 +1903,18 @@ tab_bar_right_separator = " · "
     }
 
     #[test]
+    fn tasks_command_is_unset_by_default_and_parses() {
+        assert_eq!(Config::default().tasks.command, None);
+
+        let toml = r#"
+[tasks]
+command = "~/bin/claude-tasks"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.tasks.command.as_deref(), Some("~/bin/claude-tasks"));
+    }
+
+    #[test]
     fn worktrees_directory_defaults_and_parses() {
         let default_config = Config::default();
         assert_eq!(default_config.worktrees.directory, "~/.herdr/worktrees");
@@ -1573,6 +1925,48 @@ directory = "~/Projects/herdr-worktrees"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.worktrees.directory, "~/Projects/herdr-worktrees");
+    }
+
+    #[test]
+    fn sidebar_tree_icons_default_to_plain_and_parse_nerd() {
+        assert_eq!(
+            Config::default().ui.sidebar_tree_icons,
+            SidebarTreeIconsConfig::Plain
+        );
+        let config: Config = toml::from_str(
+            r#"
+[ui]
+sidebar_tree_icons = "nerd"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.ui.sidebar_tree_icons, SidebarTreeIconsConfig::Nerd);
+    }
+
+    #[test]
+    fn sidebar_tree_panel_defaults_on_and_parses() {
+        let default_config = Config::default();
+        assert!(default_config.ui.sidebar_tree_panel);
+
+        let toml = r#"
+[ui]
+sidebar_tree_panel = false
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert!(!config.ui.sidebar_tree_panel);
+    }
+
+    #[test]
+    fn sidebar_tree_defaults_off_and_parses() {
+        let default_config = Config::default();
+        assert!(!default_config.ui.sidebar_tree);
+
+        let toml = r#"
+[ui]
+sidebar_tree = true
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert!(config.ui.sidebar_tree);
     }
 
     #[test]
